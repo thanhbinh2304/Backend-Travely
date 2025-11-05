@@ -63,9 +63,7 @@ class AuthController extends Controller
             'message' => 'User registered successfully',
             'data' => [
                 'user' => $user,
-                'token' => $token,
-                'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl') * 60 // seconds
+                'access_token' => $token
             ]
         ], 201);
     }
@@ -410,8 +408,7 @@ class AuthController extends Controller
                 'success' => true,
                 'message' => 'Password changed successfully',
                 'data' => [
-                    'token' => $newToken,
-                    'token_type' => 'bearer',
+                    'access_token' => $newToken,
                     'expires_in' => config('jwt.ttl') * 60
                 ]
             ]);
