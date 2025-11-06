@@ -43,7 +43,7 @@ php artisan key:generate
 # DB_PORT=3306
 # DB_DATABASE=travely
 # DB_USERNAME=root
-# DB_PASSWORD=
+# DB_PASSWORD=123
 
 # 5. Chạy migrations
 php artisan migrate
