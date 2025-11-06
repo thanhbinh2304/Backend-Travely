@@ -55,7 +55,7 @@ class AuthController extends Controller
         }
 
         // Set created_by to self (user created their own account)
-        $user->created_by = $user->userID;
+        $user->created_by = $user->userName;
         $user->save();
 
         return response()->json([
@@ -112,9 +112,7 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'data' => [
                 'user' => $user,
-                'token' => $token,
-                'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl') * 60
+                'access_token' => $token
             ]
         ]);
     }
@@ -156,7 +154,7 @@ class AuthController extends Controller
             ]);
 
             // Set created_by to self (user created their own account via Google)
-            $user->created_by = $user->userID;
+            $user->created_by = $user->userName;
             $user->save();
         }
 
@@ -175,9 +173,7 @@ class AuthController extends Controller
             'message' => 'Google login successful',
             'data' => [
                 'user' => $user,
-                'token' => $token,
-                'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl') * 60
+                'access_token' => $token
             ]
         ]);
     }
@@ -219,7 +215,7 @@ class AuthController extends Controller
             ]);
 
             // Set created_by to self (user created their own account via Facebook)
-            $user->created_by = $user->userID;
+            $user->created_by = $user->userName;
             $user->save();
         }
 
@@ -238,9 +234,7 @@ class AuthController extends Controller
             'message' => 'Facebook login successful',
             'data' => [
                 'user' => $user,
-                'token' => $token,
-                'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl') * 60
+                'access_token' => $token
             ]
         ]);
     }
@@ -276,9 +270,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'token' => $newToken,
-                    'token_type' => 'bearer',
-                    'expires_in' => config('jwt.ttl') * 60
+                    'access_token' => $newToken
                 ]
             ]);
         } catch (JWTException $e) {
@@ -408,8 +400,7 @@ class AuthController extends Controller
                 'success' => true,
                 'message' => 'Password changed successfully',
                 'data' => [
-                    'access_token' => $newToken,
-                    'expires_in' => config('jwt.ttl') * 60
+                    'access_token' => $newToken
                 ]
             ]);
         } catch (JWTException $e) {
