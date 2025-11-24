@@ -81,6 +81,7 @@ class TourController extends Controller
             'images.*' => 'nullable|url',
             'itineraries' => 'nullable|array',
             'itineraries.*.dayNumber' => 'required|integer|min:1',
+            'itineraries.*.destination' => 'required|string',
             'itineraries.*.activity' => 'required|string',
         ]);
 
@@ -122,6 +123,7 @@ class TourController extends Controller
                     TourItinerary::create([
                         'tourID' => $tour->tourID,
                         'dayNumber' => $itinerary['dayNumber'],
+                        'destination' => $itinerary['destination'],
                         'activity' => $itinerary['activity'],
                     ]);
                 }
@@ -197,6 +199,7 @@ class TourController extends Controller
             'images.*' => 'nullable|url',
             'itineraries' => 'nullable|array',
             'itineraries.*.dayNumber' => 'required|integer|min:1',
+            'itineraries.*.destination' => 'required|string',
             'itineraries.*.activity' => 'required|string',
         ]);
 
@@ -249,6 +252,7 @@ class TourController extends Controller
                         TourItinerary::create([
                             'tourID' => $tour->tourID,
                             'dayNumber' => $itinerary['dayNumber'],
+                            'destination' => $itinerary['destination'],
                             'activity' => $itinerary['activity'],
                         ]);
                     }

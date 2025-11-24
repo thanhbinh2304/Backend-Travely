@@ -16,6 +16,7 @@ class TourItinerary extends Model
     protected $fillable = [
         'tourID',
         'dayNumber',
+        'destination',
         'activity',
     ];
 

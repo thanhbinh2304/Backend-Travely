@@ -4,13 +4,57 @@ namespace App\Docs\API;
 
 class BookingDocs
 {
+    // ==================== USER ENDPOINTS ====================
+
     /**
      * @OA\Get(
-     *     path="/bookings",
+     *     path="/user/bookings",
      *     summary="Get user bookings",
-     *     description="Get all bookings for authenticated user",
-     *     tags={"Bookings"},
+     *     description="Get all bookings for authenticated user with filters",
+     *     tags={"User - Bookings"},
      *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="bookingStatus",
+     *         in="query",
+     *         description="Filter by booking status",
+     *         required=false,
+     *         @OA\Schema(type="string", enum={"pending", "confirmed", "completed", "cancelled"})
+     *     ),
+     *     @OA\Parameter(
+     *         name="paymentStatus",
+     *         in="query",
+     *         description="Filter by payment status",
+     *         required=false,
+     *         @OA\Schema(type="string", enum={"pending", "paid", "refunded"})
+     *     ),
+     *     @OA\Parameter(
+     *         name="start_date",
+     *         in="query",
+     *         description="Filter from date",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date", example="2025-01-01")
+     *     ),
+     *     @OA\Parameter(
+     *         name="end_date",
+     *         in="query",
+     *         description="Filter to date",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date", example="2025-12-31")
+     *     ),
+     *     @OA\Parameter(
+     *         name="search",
+     *         in="query",
+     *         description="Search by tour name",
+     *         required=false,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Parameter(
+     *         name="per_page",
+     *         in="query",
+     *         description="Items per page",
+     *         required=false,
+     *         @OA\Schema(type="integer", example=15)
+     *     ),
      *     @OA\Response(
      *         response=200,
      *         description="Bookings retrieved successfully",
@@ -42,11 +86,11 @@ class BookingDocs
     public function index() {}
 
     /**
-     * @OA\Post(
-     *     path="/bookings",
-     *     summary="Create a booking",
-     *     description="Create a new tour booking",
-     *     tags={"Bookings"},
+     * @OA\Get(
+     *     path="/user/bookings/{id}",
+     *     summary="Get booking details",
+     *     description="Get specific booking information with full details",
+     *     tags={"User - Bookings"},
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,

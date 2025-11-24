@@ -151,6 +151,7 @@ class AuthController extends Controller
                 'google_id' => $request->google_id,
                 'passWord' => Hash::make(Str::random(16)), // Random password for social login
                 'role_id' => 2, // Default: User role
+
             ]);
 
             // Set created_by to self (user created their own account via Google)
@@ -237,6 +238,107 @@ class AuthController extends Controller
                 'access_token' => $token
             ]
         ]);
+    }
+
+    /**
+     * Facebook OAuth Callback
+     * Handles the OAuth code exchange and creates/logs in user
+     */
+    public function facebookCallback(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string',
+            'state' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Exchange code for access token
+            $client = new \GuzzleHttp\Client();
+            $response = $client->post('https://graph.facebook.com/v18.0/oauth/access_token', [
+                'form_params' => [
+                    'client_id' => config('services.facebook.client_id'),
+                    'client_secret' => config('services.facebook.client_secret'),
+                    'redirect_uri' => config('app.frontend_url') . '/auth/facebook/callback',
+                    'code' => $request->code,
+                ]
+            ]);
+
+            $tokenData = json_decode($response->getBody(), true);
+            $accessToken = $tokenData['access_token'];
+
+            // Get user info from Facebook
+            $userInfoResponse = $client->get('https://graph.facebook.com/me', [
+                'query' => [
+                    'fields' => 'id,name,email',
+                    'access_token' => $accessToken,
+                ]
+            ]);
+
+            $fbUser = json_decode($userInfoResponse->getBody(), true);
+
+            // Find or create user
+            $user = Users::where('facebook_id', $fbUser['id'])->first();
+
+            if (!$user) {
+                // Check if email already exists
+                if (isset($fbUser['email'])) {
+                    $existingUser = Users::where('email', $fbUser['email'])->first();
+                    if ($existingUser) {
+                        // Link Facebook account to existing user
+                        $existingUser->facebook_id = $fbUser['id'];
+                        $existingUser->save();
+                        $user = $existingUser;
+                    }
+                }
+
+                // Create new user if not found
+                if (!$user) {
+                    $username = $this->generateUniqueUsername($fbUser['name'] ?? 'user');
+
+                    $user = Users::create([
+                        'userName' => $username,
+                        'email' => $fbUser['email'] ?? $fbUser['id'] . '@facebook.com',
+                        'facebook_id' => $fbUser['id'],
+                        'passWord' => Hash::make(Str::random(16)),
+                        'role_id' => 2,
+                    ]);
+
+                    $user->created_by = $user->userName;
+                    $user->save();
+                }
+            }
+
+            // Generate JWT token
+            $token = JWTAuth::fromUser($user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Facebook authentication successful',
+                'data' => [
+                    'user' => $user,
+                    'access_token' => $token
+                ]
+            ]);
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Facebook authentication failed',
+                'error' => $e->getMessage()
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during authentication',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

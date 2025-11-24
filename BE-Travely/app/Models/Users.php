@@ -35,6 +35,7 @@ class Users extends Authenticatable implements JWTSubject
         'facebook_id',
         'avatar_url',
         'is_admin',
+        'is_active',
     ];
 
     protected $hidden = [

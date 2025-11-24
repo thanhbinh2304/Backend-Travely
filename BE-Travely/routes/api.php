@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TourController;
+use App\Http\Controllers\BookingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,6 +25,7 @@ Route::post('/login', [AuthController::class, 'login']);
 // Social Login Routes
 Route::post('/login/google', [AuthController::class, 'loginWithGoogle']);
 Route::post('/login/facebook', [AuthController::class, 'loginWithFacebook']);
+Route::post('/auth/facebook/callback', [AuthController::class, 'facebookCallback']);
 
 // JWT Refresh Token (can be accessed with expired token)
 Route::post('/refresh', [AuthController::class, 'refresh']);
@@ -48,14 +50,26 @@ Route::middleware('auth:api')->group(function () {
 
 // User Routes (role_id = 2 or Admin role_id = 1)
 Route::middleware(['auth:api', 'user'])->group(function () {
-    // User can access these routes
-    // Example: booking, wishlist, etc.
+    // User Profile Management
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    Route::post('/user/change-password', [UserController::class, 'changePassword']);
+
+    // User Activity History
+    Route::get('/user/activity-history', [UserController::class, 'activityHistory']);
+
+    // User Booking Management
+    Route::get('/user/bookings', [BookingController::class, 'index']);
+    Route::get('/user/bookings/{id}', [BookingController::class, 'show']);
+    Route::patch('/user/bookings/{id}/cancel', [BookingController::class, 'cancel']);
 });
 
 // Admin Only Routes (role_id = 1)
 Route::middleware(['auth:api', 'admin'])->group(function () {
-    // Only admin can access these routes
-    Route::apiResource('users', UserController::class);
+    // User Management (Admin)
+    Route::get('/admin/users', [UserController::class, 'index']);
+    Route::get('/admin/users/{id}', [UserController::class, 'show']);
+    Route::get('/admin/users/{userId}/bookings', [UserController::class, 'userBookings']);
+    Route::patch('/admin/users/{id}/toggle-status', [UserController::class, 'toggleAccountStatus']);
 
     // Tour Management (Admin only)
     Route::post('/tours', [TourController::class, 'store']);
@@ -64,5 +78,10 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::patch('/tours/{id}/availability', [TourController::class, 'updateAvailability']);
     Route::patch('/tours/{id}/quantity', [TourController::class, 'updateQuantity']);
 
-    // Add more admin routes here
+    // Booking Management (Admin only)
+    Route::get('/admin/bookings', [BookingController::class, 'adminIndex']);
+    Route::patch('/admin/bookings/{id}/confirm', [BookingController::class, 'confirmBooking']);
+    Route::patch('/admin/bookings/{id}/reject', [BookingController::class, 'rejectBooking']);
+    Route::patch('/admin/bookings/{id}/status', [BookingController::class, 'updateStatus']);
+    Route::get('/admin/bookings/export', [BookingController::class, 'exportReport']);
 });
