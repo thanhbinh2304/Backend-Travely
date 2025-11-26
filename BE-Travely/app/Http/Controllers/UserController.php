@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Carbon\Carbon;
 
 class UserController extends Controller
 {
@@ -372,6 +373,43 @@ class UserController extends Controller
                 'success' => false,
                 'message' => 'Failed to update account status',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    /**
+     * GET /admin/stats/new-users
+     * -> Số lượng user mới trong khoảng thời gian
+     *    Nếu không truyền ngày, mặc định 30 ngày gần nhất
+     */
+    public function newUsersStats(Request $request)
+    {
+        try {
+            $start = $request->get('start_date');
+            $end   = $request->get('end_date');
+
+            if (!$start || !$end) {
+                $end   = Carbon::today();
+                $start = $end->copy()->subDays(30);
+            }
+
+            $count = Users::whereBetween('created_at', [
+                Carbon::parse($start)->startOfDay(),
+                Carbon::parse($end)->endOfDay()
+            ])->count();
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'start_date' => $start,
+                    'end_date'   => $end,
+                    'new_users'  => $count,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get new users stats',
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

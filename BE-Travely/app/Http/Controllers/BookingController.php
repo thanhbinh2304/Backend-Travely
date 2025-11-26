@@ -586,4 +586,81 @@ class BookingController extends Controller
             ], 500);
         }
     }
+    /**
+     * GET /admin/stats/bookings
+     * -> Tổng doanh thu + số lượng booking theo trạng thái
+     *    Có thể filter theo start_date, end_date, group_by = day|month|year
+     */
+    public function dashboardStats(Request $request)
+    {
+        try {
+            $query = Booking::query();
+
+            // lọc theo khoảng thời gian
+            if ($request->filled('start_date')) {
+                $query->whereDate('bookingDate', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('bookingDate', '<=', $request->end_date);
+            }
+
+            $bookings = $query->get();
+
+            // Tổng doanh thu (đã thanh toán, trạng thái confirmed/completed)
+            $totalRevenue = $bookings
+                ->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid')
+                ->sum('totalPrice');
+
+            // Đếm theo trạng thái
+            $summaryStatus = [
+                'pending'   => $bookings->where('bookingStatus', 'pending')->count(),
+                'confirmed' => $bookings->where('bookingStatus', 'confirmed')->count(),
+                'completed' => $bookings->where('bookingStatus', 'completed')->count(),
+                'cancelled' => $bookings->where('bookingStatus', 'cancelled')->count(),
+            ];
+
+            // Group doanh thu theo ngày/tháng/năm
+            $groupBy = $request->get('group_by', 'day'); // day|month|year
+
+            if ($groupBy === 'month') {
+                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%m-01')");
+            } elseif ($groupBy === 'year') {
+                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-01-01')");
+            } else { // day
+                $dateExpr = DB::raw("DATE(bookingDate)");
+            }
+
+            $revenueByPeriod = Booking::select(
+                    $dateExpr . ' as period',
+                    DB::raw("SUM(totalPrice) as total_revenue")
+                )
+                ->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid')
+                ->when($request->filled('start_date'), function ($q) use ($request) {
+                    $q->whereDate('bookingDate', '>=', $request->start_date);
+                })
+                ->when($request->filled('end_date'), function ($q) use ($request) {
+                    $q->whereDate('bookingDate', '<=', $request->end_date);
+                })
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_revenue'   => $totalRevenue,
+                    'status_summary'  => $summaryStatus,
+                    'revenue_by_time' => $revenueByPeriod,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get booking stats',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

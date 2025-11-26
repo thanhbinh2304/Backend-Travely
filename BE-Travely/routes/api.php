@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\InvoiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,6 +62,9 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::get('/user/bookings', [BookingController::class, 'index']);
     Route::get('/user/bookings/{id}', [BookingController::class, 'show']);
     Route::patch('/user/bookings/{id}/cancel', [BookingController::class, 'cancel']);
+
+    // Invoice - lịch sử thanh toán
+    Route::get('/invoices', [InvoiceController::class, 'index']);
 });
 
 // Admin Only Routes (role_id = 1)
@@ -84,4 +88,26 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::patch('/admin/bookings/{id}/reject', [BookingController::class, 'rejectBooking']);
     Route::patch('/admin/bookings/{id}/status', [BookingController::class, 'updateStatus']);
     Route::get('/admin/bookings/export', [BookingController::class, 'exportReport']);
+
+    // Dashboard - Booking & Revenue stats
+    Route::get('/admin/stats/bookings', [BookingController::class, 'dashboardStats']);
+
+    // Dashboard - Top tour & rating
+    Route::get('/admin/stats/top-tours', [TourController::class, 'topTours']);
+    Route::get('/admin/stats/ratings', [TourController::class, 'ratingStats']);
+
+    // Dashboard - User stats
+    Route::get('/admin/stats/new-users', [UserController::class, 'newUsersStats']);
+});
+
+// Invoice (User) - xem lịch sử thanh toán, chi tiết, tải hóa đơn
+    Route::middleware(['auth:api', 'user'])->group(function () {
+        Route::get('/invoices', [InvoiceController::class, 'index']);
+        Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+        Route::get('/invoices/{id}/download', [InvoiceController::class, 'download']);
+});
+    // Admin
+    Route::middleware(['auth:api', 'admin'])->group(function () {
+    // Route::get('/admin/invoices', [InvoiceController::class, 'adminIndex']);
+    // Route::post('/admin/invoices/{id}/refund', [InvoiceController::class, 'refund']);
 });
