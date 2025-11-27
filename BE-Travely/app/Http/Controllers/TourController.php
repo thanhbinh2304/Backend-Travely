@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use App\Models\Booking;
+use App\Models\Review;
 
 class TourController extends Controller
 {
@@ -478,5 +480,95 @@ class TourController extends Controller
             'message' => 'Tour quantity updated successfully',
             'data' => $tour
         ]);
+    }
+    /**
+     * GET /admin/stats/top-tours
+     * -> Top tour phổ biến (nhiều booking nhất)
+     */
+    public function topTours(Request $request)
+    {
+        try {
+            $limit = $request->get('limit', 5);
+
+            $query = Booking::join('tour', 'booking.tourID', '=', 'tour.tourID')
+                ->whereIn('booking.bookingStatus', ['confirmed', 'completed'])
+                ->where('booking.paymentStatus', 'paid');
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('booking.bookingDate', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('booking.bookingDate', '<=', $request->end_date);
+            }
+
+            $tours = $query
+                ->groupBy('tour.tourID', 'tour.tourName', 'tour.destination')
+                ->select(
+                    'tour.tourID',
+                    'tour.tourName',
+                    'tour.destination',
+                    DB::raw('COUNT(booking.bookingID) as bookings_count'),
+                    DB::raw('SUM(booking.totalPrice) as total_revenue')
+                )
+                ->orderByDesc('bookings_count')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $tours,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get top tours',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /admin/stats/ratings
+     * -> Đánh giá trung bình theo tour
+     */
+    public function ratingStats(Request $request)
+    {
+        try {
+            $limit = $request->get('limit', 10);
+
+            $query = Review::join('tour', 'review.tourID', '=', 'tour.tourID');
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('review.timestamp', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('review.timestamp', '<=', $request->end_date);
+            }
+
+            $stats = $query
+                ->groupBy('tour.tourID', 'tour.tourName', 'tour.destination')
+                ->select(
+                    'tour.tourID',
+                    'tour.tourName',
+                    'tour.destination',
+                    DB::raw('AVG(review.rating) as avg_rating'),
+                    DB::raw('COUNT(review.reviewID) as total_reviews')
+                )
+                ->orderByDesc('avg_rating')
+                ->orderByDesc('total_reviews')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $stats,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get rating stats',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 }

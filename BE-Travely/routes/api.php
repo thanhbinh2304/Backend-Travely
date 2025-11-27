@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\InvoiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,6 +62,11 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::get('/user/bookings', [BookingController::class, 'index']);
     Route::get('/user/bookings/{id}', [BookingController::class, 'show']);
     Route::patch('/user/bookings/{id}/cancel', [BookingController::class, 'cancel']);
+
+    // User Invoice 
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+    Route::get('/invoices/{id}/download', [InvoiceController::class, 'download']);
 });
 
 // Admin Only Routes (role_id = 1)
@@ -84,4 +90,13 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::patch('/admin/bookings/{id}/reject', [BookingController::class, 'rejectBooking']);
     Route::patch('/admin/bookings/{id}/status', [BookingController::class, 'updateStatus']);
     Route::get('/admin/bookings/export', [BookingController::class, 'exportReport']);
+
+    // Dashboard - Booking & Revenue stats
+    Route::get('/admin/stats/bookings', [BookingController::class, 'dashboardStats']);
+
+    // Dashboard - Top tour & rating
+    Route::get('/admin/stats/top-tours', [TourController::class, 'topTours']);
+    Route::get('/admin/stats/ratings', [TourController::class, 'ratingStats']);
+
 });
+
