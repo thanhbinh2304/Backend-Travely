@@ -7,6 +7,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\StatisticController;
+use App\Http\Controllers\WishlistController;
 
 /*
 |--------------------------------------------------------------------------
@@ -64,10 +67,30 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::patch('/user/bookings/{id}/cancel', [BookingController::class, 'cancel']);
 
     // User Invoice 
-    Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::get('/invoices/{id}/download', [InvoiceController::class, 'download']);
+
+    // Payment Routes (User)
+    Route::post('/payment/momo/create', [PaymentController::class, 'createMoMoPayment']);
+    Route::post('/payment/vietqr/create', [PaymentController::class, 'createVietQRPayment']);
+    Route::get('/payment/status/{checkoutID}', [PaymentController::class, 'getPaymentStatus']);
+    Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
+
+    // Wishlist Routes (User)
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+    Route::post('/wishlist', [WishlistController::class, 'store']);
+    Route::delete('/wishlist/{tourID}', [WishlistController::class, 'destroy']);
+    Route::post('/wishlist/toggle/{tourID}', [WishlistController::class, 'toggle']);
+    Route::get('/wishlist/share', [WishlistController::class, 'share']);
+    Route::delete('/wishlist/clear', [WishlistController::class, 'clear']);
 });
+
+// Public Routes
+Route::get('/wishlist/shared/{token}', [WishlistController::class, 'viewShared']);
+
+// Public Payment Callback Routes (No auth required - MoMo will call these)
+Route::post('/payment/momo/callback', [PaymentController::class, 'momoCallback']);
+Route::get('/payment/momo/return', [PaymentController::class, 'momoReturn']);
 
 // Admin Only Routes (role_id = 1)
 Route::middleware(['auth:api', 'admin'])->group(function () {
@@ -91,14 +114,15 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::patch('/admin/bookings/{id}/status', [BookingController::class, 'updateStatus']);
     Route::get('/admin/bookings/export', [BookingController::class, 'exportReport']);
 
-    // Dashboard - Booking & Revenue stats
-    Route::get('/admin/stats/bookings', [BookingController::class, 'dashboardStats']);
+    // Statistics & Analytics (Admin only)
+    Route::get('/admin/statistics/dashboard', [StatisticController::class, 'dashboardOverview']);
+    Route::get('/admin/statistics/bookings', [StatisticController::class, 'bookingStats']);
+    Route::get('/admin/statistics/revenue', [StatisticController::class, 'revenueStats']);
+    Route::get('/admin/statistics/payment-methods', [StatisticController::class, 'paymentMethodStats']);
+    Route::get('/admin/statistics/top-tours', [StatisticController::class, 'topTours']);
+    Route::get('/admin/statistics/tour-ratings', [StatisticController::class, 'tourRatings']);
+    Route::get('/admin/statistics/user-growth', [StatisticController::class, 'userGrowth']);
 
-    // Dashboard - Top tour & rating
-    Route::get('/admin/stats/top-tours', [TourController::class, 'topTours']);
-    Route::get('/admin/stats/ratings', [TourController::class, 'ratingStats']);
-
-    // Dashboard - User stats
-    Route::get('/admin/stats/new-users', [UserController::class, 'newUsersStats']);
+    // Payment Verification (Admin only)
+    Route::post('/admin/payment/vietqr/verify', [PaymentController::class, 'verifyVietQRPayment']);
 });
-

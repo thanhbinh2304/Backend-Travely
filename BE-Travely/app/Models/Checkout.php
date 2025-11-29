@@ -20,12 +20,34 @@ class Checkout extends Model
         'amount',
         'paymentStatus',
         'transactionID',
+        'paymentData',
+        'qrCode',
+        'createdAt',
+        'updatedAt',
     ];
 
     protected $casts = [
         'paymentDate' => 'datetime',
         'amount' => 'decimal:2',
+        'paymentData' => 'array',
+        'createdAt' => 'datetime',
+        'updatedAt' => 'datetime',
     ];
+
+    /**
+     * Payment status constants
+     */
+    const STATUS_PENDING = 'pending';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_FAILED = 'failed';
+    const STATUS_CANCELLED = 'cancelled';
+
+    /**
+     * Payment method constants
+     */
+    const METHOD_MOMO = 'momo';
+    const METHOD_BANK_TRANSFER = 'bank_transfer';
+    const METHOD_CASH = 'cash';
 
     /**
      * Relationships
@@ -33,5 +55,45 @@ class Checkout extends Model
     public function booking()
     {
         return $this->belongsTo(Booking::class, 'bookingID', 'bookingID');
+    }
+
+    /**
+     * Scope for pending payments
+     */
+    public function scopePending($query)
+    {
+        return $query->where('paymentStatus', self::STATUS_PENDING);
+    }
+
+    /**
+     * Scope for completed payments
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->where('paymentStatus', self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Check if payment is pending
+     */
+    public function isPending()
+    {
+        return $this->paymentStatus === self::STATUS_PENDING;
+    }
+
+    /**
+     * Check if payment is completed
+     */
+    public function isCompleted()
+    {
+        return $this->paymentStatus === self::STATUS_COMPLETED;
+    }
+
+    /**
+     * Check if payment is failed
+     */
+    public function isFailed()
+    {
+        return $this->paymentStatus === self::STATUS_FAILED;
     }
 }
