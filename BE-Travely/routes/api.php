@@ -98,5 +98,7 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/stats/top-tours', [TourController::class, 'topTours']);
     Route::get('/admin/stats/ratings', [TourController::class, 'ratingStats']);
 
+    // Dashboard - User stats
+    Route::get('/admin/stats/new-users', [UserController::class, 'newUsersStats']);
 });
 
