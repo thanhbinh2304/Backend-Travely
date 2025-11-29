@@ -140,7 +140,11 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/statistics/tour-ratings', [StatisticController::class, 'tourRatings']);
     Route::get('/admin/statistics/user-growth', [StatisticController::class, 'userGrowth']);
 
-    // Payment Verification (Admin only)
+    // Payment Management (Admin only)
+    Route::get('/admin/payments', [PaymentController::class, 'getAllPayments']);
+    Route::get('/admin/payments/statistics', [PaymentController::class, 'getPaymentStatistics']);
+    Route::get('/admin/payments/{id}', [PaymentController::class, 'getPaymentDetails']);
+    Route::post('/admin/payments/{id}/refund', [PaymentController::class, 'refundPayment']);
     Route::post('/admin/payment/vietqr/verify', [PaymentController::class, 'verifyVietQRPayment']);
 
     // Review Management (Admin only)

@@ -24,6 +24,10 @@ class Checkout extends Model
         'qrCode',
         'createdAt',
         'updatedAt',
+        'refundDate',
+        'refundAmount',
+        'refundReason',
+        'refundBy',
     ];
 
     protected $casts = [
@@ -32,6 +36,8 @@ class Checkout extends Model
         'paymentData' => 'array',
         'createdAt' => 'datetime',
         'updatedAt' => 'datetime',
+        'refundDate' => 'datetime',
+        'refundAmount' => 'decimal:2',
     ];
 
     /**
@@ -41,6 +47,7 @@ class Checkout extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';
+    const STATUS_REFUNDED = 'refunded';
 
     /**
      * Payment method constants
