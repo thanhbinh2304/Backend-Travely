@@ -20,11 +20,25 @@ class Review extends Model
         'userID',
         'rating',
         'comment',
+        'images',
+        'status',
+        'is_verified_purchase',
     ];
 
     protected $casts = [
         'timestamp' => 'datetime',
+        'updated_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'images' => 'array',
+        'is_verified_purchase' => 'boolean',
     ];
+
+    /**
+     * Status constants
+     */
+    const STATUS_PENDING = 'pending';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_HIDDEN = 'hidden';
 
     /**
      * Relationships

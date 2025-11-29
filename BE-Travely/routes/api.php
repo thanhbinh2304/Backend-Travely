@@ -10,6 +10,7 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\StatisticController;
 use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\ReviewController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +42,10 @@ Route::get('/tours/available', [TourController::class, 'available']);
 Route::get('/tours/search', [TourController::class, 'search']);
 Route::get('/tours/destination/{destination}', [TourController::class, 'byDestination']);
 Route::get('/tours/{id}', [TourController::class, 'show']);
+
+// Public Review Routes
+Route::get('/reviews', [ReviewController::class, 'index']);
+Route::get('/reviews/{id}', [ReviewController::class, 'show']);
 
 // Protected Routes (require JWT authentication)
 Route::middleware('auth:api')->group(function () {
@@ -83,6 +88,13 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::post('/wishlist/toggle/{tourID}', [WishlistController::class, 'toggle']);
     Route::get('/wishlist/share', [WishlistController::class, 'share']);
     Route::delete('/wishlist/clear', [WishlistController::class, 'clear']);
+
+    // Review Routes (User)
+    Route::get('/user/reviews', [ReviewController::class, 'myReviews']);
+    Route::post('/reviews', [ReviewController::class, 'store']);
+    Route::put('/reviews/{id}', [ReviewController::class, 'update']);
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy']);
+    Route::post('/reviews/{id}/images', [ReviewController::class, 'uploadImages']);
 });
 
 // Public Routes
@@ -125,4 +137,10 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
 
     // Payment Verification (Admin only)
     Route::post('/admin/payment/vietqr/verify', [PaymentController::class, 'verifyVietQRPayment']);
+
+    // Review Management (Admin only)
+    Route::get('/admin/reviews', [ReviewController::class, 'adminIndex']);
+    Route::patch('/admin/reviews/{id}/approve', [ReviewController::class, 'approve']);
+    Route::patch('/admin/reviews/{id}/hide', [ReviewController::class, 'hide']);
+    Route::delete('/admin/reviews/{id}', [ReviewController::class, 'adminDestroy']);
 });
