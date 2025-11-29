@@ -11,6 +11,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\StatisticController;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\PromotionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,6 +47,10 @@ Route::get('/tours/{id}', [TourController::class, 'show']);
 // Public Review Routes
 Route::get('/reviews', [ReviewController::class, 'index']);
 Route::get('/reviews/{id}', [ReviewController::class, 'show']);
+
+// Public Promotion Routes
+Route::get('/promotions', [PromotionController::class, 'index']);
+Route::get('/promotions/{id}', [PromotionController::class, 'show']);
 
 // Protected Routes (require JWT authentication)
 Route::middleware('auth:api')->group(function () {
@@ -143,4 +148,9 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::patch('/admin/reviews/{id}/approve', [ReviewController::class, 'approve']);
     Route::patch('/admin/reviews/{id}/hide', [ReviewController::class, 'hide']);
     Route::delete('/admin/reviews/{id}', [ReviewController::class, 'adminDestroy']);
+
+    // Promotion Management (Admin only)
+    Route::post('/promotions', [PromotionController::class, 'store']);
+    Route::put('/promotions/{id}', [PromotionController::class, 'update']);
+    Route::delete('/promotions/{id}', [PromotionController::class, 'destroy']);
 });
