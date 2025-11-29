@@ -12,6 +12,7 @@ use App\Http\Controllers\StatisticController;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -100,6 +101,14 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::put('/reviews/{id}', [ReviewController::class, 'update']);
     Route::delete('/reviews/{id}', [ReviewController::class, 'destroy']);
     Route::post('/reviews/{id}/images', [ReviewController::class, 'uploadImages']);
+
+    // Notification Routes (User)
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications', [NotificationController::class, 'destroyAll']);
 });
 
 // Public Routes

@@ -120,6 +120,12 @@ class PromotionController extends Controller
 
             $promotion = Promotion::create($request->all());
 
+            // Send notification to all users about new promotion
+            $users = \App\Models\Users::where('is_active', true)->get();
+            foreach ($users as $user) {
+                $user->notify(new \App\Notifications\NewPromotionNotification($promotion));
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Promotion created successfully',

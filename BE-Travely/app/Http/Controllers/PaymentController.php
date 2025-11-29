@@ -223,6 +223,9 @@ class PaymentController extends Controller
                 $booking = $checkout->booking;
                 if ($booking && $booking->bookingStatus == 'pending') {
                     $booking->update(['bookingStatus' => 'confirmed']);
+
+                    // Send payment success notification
+                    $booking->user->notify(new \App\Notifications\PaymentSuccessNotification($checkout));
                 }
 
                 // Auto create invoice
@@ -459,6 +462,9 @@ class PaymentController extends Controller
             $booking = $checkout->booking;
             if ($booking && $booking->bookingStatus == 'pending') {
                 $booking->update(['bookingStatus' => 'confirmed']);
+
+                // Send payment success notification
+                $booking->user->notify(new \App\Notifications\PaymentSuccessNotification($checkout));
             }
 
             // Auto create invoice
@@ -817,6 +823,9 @@ class PaymentController extends Controller
                     'bookingStatus' => 'cancelled',
                     'cancelReason' => 'Refunded: ' . $request->reason
                 ]);
+
+                // Send refund notification to user
+                $payment->booking->user->notify(new \App\Notifications\RefundProcessedNotification($payment));
             }
 
             // Log refund action

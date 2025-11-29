@@ -292,6 +292,9 @@ class BookingController extends Controller
             $booking->bookingStatus = 'confirmed';
             $booking->save();
 
+            // Send notification to user
+            $booking->user->notify(new \App\Notifications\BookingConfirmedNotification($booking));
+
             // Log history
             $admin = JWTAuth::parseToken()->authenticate();
             History::create([
