@@ -517,4 +517,305 @@ class StatisticController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * @OA\Get(
+     *     path="/api/admin/statistics/financial-report",
+     *     summary="Export financial report (Admin only)",
+     *     tags={"Statistics"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="start_date",
+     *         in="query",
+     *         description="Start date (Y-m-d)",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date")
+     *     ),
+     *     @OA\Parameter(
+     *         name="end_date",
+     *         in="query",
+     *         description="End date (Y-m-d)",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date")
+     *     ),
+     *     @OA\Parameter(
+     *         name="format",
+     *         in="query",
+     *         description="Export format: json or csv",
+     *         required=false,
+     *         @OA\Schema(type="string", enum={"json", "csv"}, default="json")
+     *     ),
+     *     @OA\Response(response=200, description="Financial report generated")
+     * )
+     */
+    public function financialReport(Request $request)
+    {
+        try {
+            $startDate = $request->filled('start_date')
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::now()->startOfMonth();
+
+            $endDate = $request->filled('end_date')
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::now()->endOfDay();
+
+            // Get payment transactions
+            $payments = Checkout::with(['booking.tour', 'booking.user'])
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get();
+
+            // Build report using separate methods
+            $report = [
+                'report_info' => $this->getReportInfo($startDate, $endDate),
+                'summary' => $this->getFinancialSummary($payments),
+                'breakdown' => $this->getFinancialBreakdown($payments, $startDate, $endDate),
+                'trends' => $this->getFinancialTrends($payments),
+                'top_performers' => $this->getTopPerformers($startDate, $endDate),
+                'refunds' => $this->getRefundStatistics($payments),
+                'transactions' => $this->getTransactionDetails($payments)
+            ];
+
+            // Handle CSV export
+            if ($request->get('format') === 'csv') {
+                return $this->exportFinancialReportToCsv($report, $startDate, $endDate);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Financial report generated successfully',
+                'data' => $report
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate financial report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get report information
+     */
+    private function getReportInfo($startDate, $endDate)
+    {
+        return [
+            'generated_at' => now()->toDateTimeString(),
+            'period' => [
+                'start_date' => $startDate->format('Y-m-d'),
+                'end_date' => $endDate->format('Y-m-d'),
+                'days' => $startDate->diffInDays($endDate) + 1
+            ]
+        ];
+    }
+
+    /**
+     * Calculate financial summary
+     */
+    private function getFinancialSummary($payments)
+    {
+        $totalRevenue = $payments->where('paymentStatus', 'completed')->sum('amount');
+        $totalRefunded = $payments->where('paymentStatus', 'refunded')->sum('refundAmount');
+        $completedPayments = $payments->where('paymentStatus', 'completed');
+
+        return [
+            'total_transactions' => $payments->count(),
+            'total_revenue' => $totalRevenue,
+            'total_refunded' => $totalRefunded,
+            'net_revenue' => $totalRevenue - $totalRefunded,
+            'average_transaction' => $completedPayments->avg('amount'),
+            'success_rate' => $payments->count() > 0
+                ? round(($completedPayments->count() / $payments->count()) * 100, 2)
+                : 0
+        ];
+    }
+
+    /**
+     * Get financial breakdown by payment method and status
+     */
+    private function getFinancialBreakdown($payments, $startDate, $endDate)
+    {
+        // Payment method breakdown
+        $paymentMethodStats = Checkout::query()
+            ->where('paymentStatus', 'completed')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->selectRaw('
+                paymentMethod,
+                COUNT(*) as total_transactions,
+                SUM(amount) as total_amount,
+                AVG(amount) as avg_amount
+            ')
+            ->groupBy('paymentMethod')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'payment_method' => $item->paymentMethod,
+                    'count' => $item->total_transactions,
+                    'total' => $item->total_amount,
+                    'average' => $item->avg_amount
+                ];
+            });
+
+        // Status breakdown
+        $transactionsByStatus = $payments->groupBy('paymentStatus')
+            ->map(function ($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum('amount')
+                ];
+            });
+
+        return [
+            'by_payment_method' => $paymentMethodStats,
+            'by_status' => $transactionsByStatus
+        ];
+    }
+
+    /**
+     * Get financial trends (daily revenue)
+     */
+    private function getFinancialTrends($payments)
+    {
+        $dailyRevenue = $payments->where('paymentStatus', 'completed')
+            ->groupBy(function ($payment) {
+                return Carbon::parse($payment->paymentDate)->format('Y-m-d');
+            })
+            ->map(function ($group, $date) {
+                return [
+                    'date' => $date,
+                    'count' => $group->count(),
+                    'total' => $group->sum('amount')
+                ];
+            })
+            ->sortBy('date')
+            ->values();
+
+        return [
+            'daily_revenue' => $dailyRevenue
+        ];
+    }
+
+    /**
+     * Get top performing tours
+     */
+    private function getTopPerformers($startDate, $endDate)
+    {
+        $topTours = Booking::with('tour')
+            ->whereBetween('bookingDate', [$startDate, $endDate])
+            ->whereIn('bookingStatus', ['confirmed', 'completed'])
+            ->where('paymentStatus', 'paid')
+            ->get()
+            ->groupBy('tourID')
+            ->map(function ($bookings) {
+                $tour = $bookings->first()->tour;
+                return [
+                    'tour_id' => $tour->tourID ?? null,
+                    'tour_title' => $tour->title ?? 'N/A',
+                    'bookings_count' => $bookings->count(),
+                    'total_revenue' => $bookings->sum('totalPrice')
+                ];
+            })
+            ->sortByDesc('total_revenue')
+            ->take(10)
+            ->values();
+
+        return [
+            'tours' => $topTours
+        ];
+    }
+
+    /**
+     * Get refund statistics
+     */
+    private function getRefundStatistics($payments)
+    {
+        $refundedPayments = $payments->where('paymentStatus', 'refunded');
+        $totalRefunded = $refundedPayments->sum('refundAmount');
+
+        return [
+            'total_refunded_amount' => $totalRefunded,
+            'total_refunds' => $refundedPayments->count(),
+            'refund_rate' => $payments->count() > 0
+                ? round(($refundedPayments->count() / $payments->count()) * 100, 2)
+                : 0
+        ];
+    }
+
+    /**
+     * Get detailed transaction list
+     */
+    private function getTransactionDetails($payments)
+    {
+        return $payments->map(function ($payment) {
+            return [
+                'checkout_id' => $payment->checkoutID,
+                'booking_id' => $payment->bookingID,
+                'transaction_id' => $payment->transactionID,
+                'customer_name' => $payment->booking->user->userName ?? 'N/A',
+                'tour_title' => $payment->booking->tour->title ?? 'N/A',
+                'amount' => $payment->amount,
+                'payment_method' => $payment->paymentMethod,
+                'payment_status' => $payment->paymentStatus,
+                'payment_date' => $payment->paymentDate,
+                'refund_amount' => $payment->refundAmount,
+                'refund_date' => $payment->refundDate,
+                'refund_reason' => $payment->refundReason
+            ];
+        });
+    }
+
+    /**
+     * Export financial report to CSV
+     */
+    private function exportFinancialReportToCsv($report, $startDate, $endDate)
+    {
+        $filename = 'financial_report_' . $startDate->format('Ymd') . '_' . $endDate->format('Ymd') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($report) {
+            $file = fopen('php://output', 'w');
+
+            // Summary section
+            fputcsv($file, ['FINANCIAL REPORT SUMMARY']);
+            fputcsv($file, ['Period', $report['report_info']['period']['start_date'] . ' to ' . $report['report_info']['period']['end_date']]);
+            fputcsv($file, ['Generated At', $report['report_info']['generated_at']]);
+            fputcsv($file, []);
+
+            fputcsv($file, ['Total Transactions', $report['summary']['total_transactions']]);
+            fputcsv($file, ['Total Revenue', number_format($report['summary']['total_revenue'], 0)]);
+            fputcsv($file, ['Total Refunded', number_format($report['summary']['total_refunded'], 0)]);
+            fputcsv($file, ['Net Revenue', number_format($report['summary']['net_revenue'], 0)]);
+            fputcsv($file, ['Average Transaction', number_format($report['summary']['average_transaction'], 0)]);
+            fputcsv($file, ['Success Rate', $report['summary']['success_rate'] . '%']);
+            fputcsv($file, []);
+
+            // Transactions detail
+            fputcsv($file, ['TRANSACTION DETAILS']);
+            fputcsv($file, ['Checkout ID', 'Booking ID', 'Transaction ID', 'Customer', 'Tour', 'Amount', 'Payment Method', 'Status', 'Payment Date', 'Refund Amount', 'Refund Date', 'Refund Reason']);
+
+            foreach ($report['transactions'] as $transaction) {
+                fputcsv($file, [
+                    $transaction['checkout_id'],
+                    $transaction['booking_id'],
+                    $transaction['transaction_id'],
+                    $transaction['customer_name'],
+                    $transaction['tour_title'],
+                    $transaction['amount'],
+                    $transaction['payment_method'],
+                    $transaction['payment_status'],
+                    $transaction['payment_date'],
+                    $transaction['refund_amount'] ?? '',
+                    $transaction['refund_date'] ?? '',
+                    $transaction['refund_reason'] ?? ''
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

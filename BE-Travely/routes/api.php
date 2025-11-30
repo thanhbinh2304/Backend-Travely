@@ -148,6 +148,7 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/statistics/top-tours', [StatisticController::class, 'topTours']);
     Route::get('/admin/statistics/tour-ratings', [StatisticController::class, 'tourRatings']);
     Route::get('/admin/statistics/user-growth', [StatisticController::class, 'userGrowth']);
+    Route::get('/admin/statistics/financial-report', [StatisticController::class, 'financialReport']);
 
     // Payment Management (Admin only)
     Route::get('/admin/payments', [PaymentController::class, 'getAllPayments']);
