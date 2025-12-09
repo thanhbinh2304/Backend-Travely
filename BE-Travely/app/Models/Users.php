@@ -36,6 +36,7 @@ class Users extends Authenticatable implements JWTSubject
         'avatar_url',
         'is_admin',
         'is_active',
+        'last_login',
     ];
 
     protected $hidden = [
@@ -50,6 +51,7 @@ class Users extends Authenticatable implements JWTSubject
         'verification_token_expires_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'last_login' => 'datetime',
     ];
 
     /**

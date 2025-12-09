@@ -125,6 +125,7 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/users/{id}', [UserController::class, 'show']);
     Route::get('/admin/users/{userId}/bookings', [UserController::class, 'userBookings']);
     Route::patch('/admin/users/{id}/toggle-status', [UserController::class, 'toggleAccountStatus']);
+    Route::delete('/admin/users/{id}', [UserController::class, 'destroy']);
 
     // Tour Management (Admin only)
     Route::post('/tours', [TourController::class, 'store']);

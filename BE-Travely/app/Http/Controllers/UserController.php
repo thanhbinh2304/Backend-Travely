@@ -252,23 +252,37 @@ class UserController extends Controller
         $stats = [
             'total_bookings' => Booking::where('userID', $user->userID)->count(),
             'pending_bookings' => Booking::where('userID', $user->userID)
-                ->where('status', 'pending')->count(),
+                ->where('bookingStatus', 'pending')->count(),
             'confirmed_bookings' => Booking::where('userID', $user->userID)
-                ->where('status', 'confirmed')->count(),
+                ->where('bookingStatus', 'confirmed')->count(),
             'cancelled_bookings' => Booking::where('userID', $user->userID)
-                ->where('status', 'cancelled')->count(),
+                ->where('bookingStatus', 'cancelled')->count(),
             'total_spent' => Booking::where('userID', $user->userID)
-                ->whereIn('status', ['confirmed', 'completed'])
+                ->whereIn('bookingStatus', ['confirmed', 'completed'])
                 ->sum('totalPrice'),
         ];
 
+        // Build response matching frontend expectations
         return response()->json([
             'success' => true,
             'data' => [
-                'user' => $user,
+                'details' => [
+                    'userID' => $user->userID,
+                    'userName' => $user->userName,
+                    'email' => $user->email,
+                    'phoneNumber' => $user->phoneNumber,
+                    'address' => $user->address,
+                    'role_id' => $user->role_id,
+                    'status' => $user->is_active ? 'active' : 'inactive',
+                    'verified' => $user->email_verified,
+                    'created_at' => $user->created_at->toISOString(),
+                    'updated_at' => $user->updated_at->toISOString(),
+                ],
+                'roleName' => $user->role ? $user->role->role_name : ($user->is_admin ? 'Admin' : 'User'),
+                'lastLogin' => $user->last_login ? $user->last_login->toISOString() : null,
                 'stats' => $stats
             ]
-        ]);
+        ], 200);
     }
 
     /**
@@ -347,17 +361,13 @@ class UserController extends Controller
         }
 
         try {
-            // Toggle status (assuming you have a 'status' or 'is_active' field)
-            // If you don't have this field, you can add it to the users table
-            // For now, I'll use a hypothetical 'status' field
+            // Toggle status: 1 (active) <-> 0 (inactive)
+            $newStatus = $user->is_active ? 0 : 1;
 
-            // Option 1: If you have a 'status' field (active/locked)
-            $user->is_active = ($user->is_active === true) ? false : true;
-
-            // Option 2: If you have an 'is_active' boolean field
-            // $user->is_active = !$user->is_active;
-
-            $user->save();
+            // Update only is_active field using query builder (doesn't trigger updated_at)
+            DB::table('users')
+                ->where('userID', $user->userID)
+                ->update(['is_active' => $newStatus]);
 
             return response()->json([
                 'success' => true,
@@ -365,13 +375,57 @@ class UserController extends Controller
                 'data' => [
                     'userID' => $user->userID,
                     'userName' => $user->userName,
-                    'is_active' => $user->is_active,
+                    'is_active' => $newStatus,
                 ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update account status',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete user
+     * Admin only
+     */
+    public function destroy($id)
+    {
+        $user = Users::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        // Prevent deleting own account
+        try {
+            $admin = JWTAuth::parseToken()->authenticate();
+            if ($admin->userID === $user->userID) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete your own account'
+                ], 400);
+            }
+        } catch (\Exception $e) {
+            // Continue if token validation fails
+        }
+
+        try {
+            $user->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete user',
                 'error' => $e->getMessage()
             ], 500);
         }

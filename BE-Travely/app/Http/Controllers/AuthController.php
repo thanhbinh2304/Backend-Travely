@@ -97,6 +97,10 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // Update last login timestamp
+        $user->last_login = now();
+        $user->save();
+
         // Generate JWT token
         try {
             $token = JWTAuth::fromUser($user);
@@ -154,10 +158,14 @@ class AuthController extends Controller
 
             ]);
 
-            // Set created_by to self (user created their own account via Google)
+            // Set created_by to self (user created their own account via Facebook)
             $user->created_by = $user->userName;
             $user->save();
         }
+
+        // Update last login timestamp
+        $user->last_login = now();
+        $user->save();
 
         // Generate JWT token
         try {
@@ -171,7 +179,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Google login successful',
+            'message' => 'Facebook login successful',
             'data' => [
                 'user' => $user,
                 'access_token' => $token
@@ -219,6 +227,10 @@ class AuthController extends Controller
             $user->created_by = $user->userName;
             $user->save();
         }
+
+        // Update last login timestamp
+        $user->last_login = now();
+        $user->save();
 
         // Generate JWT token
         try {
