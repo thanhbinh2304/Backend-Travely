@@ -11,7 +11,7 @@ class Tour extends Model
 
     protected $table = 'tour';
     protected $primaryKey = 'tourID';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'title',
@@ -23,6 +23,8 @@ class Tour extends Model
         'availability',
         'startDate',
         'endDate',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [

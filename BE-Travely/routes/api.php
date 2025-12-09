@@ -128,6 +128,8 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::delete('/admin/users/{id}', [UserController::class, 'destroy']);
 
     // Tour Management (Admin only)
+    Route::get('/admin/tours', [TourController::class, 'index']); // Admin can get all tours
+    Route::get('/admin/tours/{id}', [TourController::class, 'show']); // Admin can get tour detail
     Route::post('/tours', [TourController::class, 'store']);
     Route::put('/tours/{id}', [TourController::class, 'update']);
     Route::delete('/tours/{id}', [TourController::class, 'destroy']);
