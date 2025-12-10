@@ -130,7 +130,9 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     // Tour Management (Admin only)
     Route::get('/admin/tours', [TourController::class, 'index']); // Admin can get all tours
     Route::get('/admin/tours/{id}', [TourController::class, 'show']); // Admin can get tour detail
+    Route::post('/tours/upload-image', [TourController::class, 'uploadImage']);
     Route::post('/tours', [TourController::class, 'store']);
+    Route::post('/tours/{id}', [TourController::class, 'update']); // POST for multipart/form-data
     Route::put('/tours/{id}', [TourController::class, 'update']);
     Route::delete('/tours/{id}', [TourController::class, 'destroy']);
     Route::patch('/tours/{id}/availability', [TourController::class, 'updateAvailability']);

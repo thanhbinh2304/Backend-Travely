@@ -8,12 +8,58 @@ use App\Models\TourItinerary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Booking;
 use App\Models\Review;
 
 class TourController extends Controller
 {
+    /**
+     * Upload tour image
+     * Admin only
+     */
+    public function uploadImage(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // Max 5MB
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $image = $request->file('image');
+            $fileName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+
+            // Store in public/storage/tours
+            $path = $image->storeAs('tours', $fileName, 'public');
+
+            $imageUrl = url('storage/' . $path);
+            // Force HTTPS
+            $imageUrl = str_replace('http://', 'https://', $imageUrl);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Image uploaded successfully',
+                'data' => [
+                    'url' => $imageUrl,
+                    'path' => $path
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload image',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Display a listing of tours (with pagination and filters)
      * Public access
@@ -80,7 +126,9 @@ class TourController extends Controller
             'startDate' => 'required|date',
             'endDate' => 'required|date|after_or_equal:startDate',
             'images' => 'nullable|array',
-            'images.*' => 'nullable|url',
+            'images.*' => 'nullable|string', // Accept URL string (from upload API)
+            'image_files' => 'nullable|array',
+            'image_files.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'itineraries' => 'nullable|array',
             'itineraries.*.dayNumber' => 'required|integer|min:1',
             'itineraries.*.destination' => 'required|string',
@@ -109,7 +157,22 @@ class TourController extends Controller
                 'endDate' => $request->endDate,
             ]);
 
-            // Add images if provided
+            // Handle image files upload
+            if ($request->hasFile('image_files')) {
+                foreach ($request->file('image_files') as $image) {
+                    $fileName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                    $path = $image->storeAs('tours', $fileName, 'public');
+                    $imageUrl = url('storage/' . $path);
+                    $imageUrl = str_replace('http://', 'https://', $imageUrl);
+
+                    TourImage::create([
+                        'tourID' => $tour->tourID,
+                        'imageURL' => $imageUrl,
+                    ]);
+                }
+            }
+
+            // Add images from URLs if provided
             if ($request->has('images') && is_array($request->images)) {
                 foreach ($request->images as $imageUrl) {
                     TourImage::create([
@@ -187,6 +250,9 @@ class TourController extends Controller
             ], 404);
         }
 
+        // Log request data for debugging
+        Log::info('Tour Update Request Data:', $request->all());
+
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
@@ -198,7 +264,9 @@ class TourController extends Controller
             'startDate' => 'sometimes|date',
             'endDate' => 'sometimes|date|after_or_equal:startDate',
             'images' => 'nullable|array',
-            'images.*' => 'nullable|url',
+            'images.*' => 'nullable|string',
+            'image_files' => 'nullable|array',
+            'image_files.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             'itineraries' => 'nullable|array',
             'itineraries.*.dayNumber' => 'required|integer|min:1',
             'itineraries.*.destination' => 'required|string',
@@ -206,6 +274,7 @@ class TourController extends Controller
         ]);
 
         if ($validator->fails()) {
+            Log::error('Validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()
@@ -228,12 +297,27 @@ class TourController extends Controller
             ]));
 
             // Update images if provided
-            if ($request->has('images')) {
+            if ($request->has('images') || $request->hasFile('image_files')) {
                 // Delete old images
                 TourImage::where('tourID', $tour->tourID)->delete();
 
-                // Add new images
-                if (is_array($request->images)) {
+                // Handle new image files upload
+                if ($request->hasFile('image_files')) {
+                    foreach ($request->file('image_files') as $image) {
+                        $fileName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                        $path = $image->storeAs('tours', $fileName, 'public');
+                        $imageUrl = url('storage/' . $path);
+                        $imageUrl = str_replace('http://', 'https://', $imageUrl);
+
+                        TourImage::create([
+                            'tourID' => $tour->tourID,
+                            'imageURL' => $imageUrl,
+                        ]);
+                    }
+                }
+
+                // Add images from URLs
+                if ($request->has('images') && is_array($request->images)) {
                     foreach ($request->images as $imageUrl) {
                         TourImage::create([
                             'tourID' => $tour->tourID,

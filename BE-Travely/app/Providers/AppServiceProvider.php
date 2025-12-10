@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        // Force HTTPS URLs for assets and routes
+        if (config('app.env') !== 'local' || request()->secure()) {
+            URL::forceScheme('https');
+        }
     }
 }

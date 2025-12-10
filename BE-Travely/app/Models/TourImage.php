@@ -24,6 +24,25 @@ class TourImage extends Model
         'uploadDate' => 'datetime',
     ];
 
+    protected $appends = ['imageUrl'];
+
+    /**
+     * Get imageUrl accessor for frontend compatibility
+     */
+    public function getImageUrlAttribute()
+    {
+        // Force HTTPS and correct port for image URLs - use attributes array to avoid infinite loop
+        $url = $this->attributes['imageURL'] ?? '';
+
+        // Replace http with https
+        $url = str_replace('http://', 'https://', $url);
+
+        // Replace port 8000 with 8443 (proxy port)
+        $url = str_replace('127.0.0.1:8000', '127.0.0.1:8443', $url);
+
+        return $url;
+    }
+
     /**
      * Relationships
      */
