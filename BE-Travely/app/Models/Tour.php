@@ -33,7 +33,29 @@ class Tour extends Model
         'priceChild' => 'decimal:2',
         'startDate' => 'date',
         'endDate' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
+
+    protected $appends = ['createdAt', 'updatedAt'];
+
+    /**
+     * Get createdAt accessor for frontend compatibility
+     */
+    public function getCreatedAtAttribute()
+    {
+        $createdAt = $this->attributes['created_at'] ?? null;
+        return $createdAt ? \Carbon\Carbon::parse($createdAt)->toIso8601String() : null;
+    }
+
+    /**
+     * Get updatedAt accessor for frontend compatibility
+     */
+    public function getUpdatedAtAttribute()
+    {
+        $updatedAt = $this->attributes['updated_at'] ?? null;
+        return $updatedAt ? \Carbon\Carbon::parse($updatedAt)->toIso8601String() : null;
+    }
 
     /**
      * Relationships
