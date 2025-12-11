@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Http;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class PaymentController extends Controller
 {
@@ -64,12 +65,12 @@ class PaymentController extends Controller
             $orderId = 'BOOKING_' . $request->bookingID . '_' . time();
 
             // MoMo Config
-            $partnerCode = config('services.momo.partner_code');
-            $accessKey = config('services.momo.access_key');
-            $secretKey = config('services.momo.secret_key');
-            $endpoint = config('services.momo.endpoint');
-            $returnUrl = config('services.momo.return_url');
-            $notifyUrl = config('services.momo.notify_url');
+            $partnerCode = config('payment.momo.partner_code');
+            $accessKey = config('payment.momo.access_key');
+            $secretKey = config('payment.momo.secret_key');
+            $endpoint = config('payment.momo.endpoint');
+            $returnUrl = config('payment.momo.return_url');
+            $notifyUrl = config('payment.momo.notify_url');
 
             $requestId = time() . '';
             $orderInfo = $request->orderInfo ?? 'Payment for booking #' . $request->bookingID;
@@ -168,8 +169,8 @@ class PaymentController extends Controller
 
         try {
             // Verify signature
-            $secretKey = config('services.momo.secret_key');
-            $accessKey = config('services.momo.access_key');
+            $secretKey = config('payment.momo.secret_key');
+            $accessKey = config('payment.momo.access_key');
 
             $rawHash = "accessKey=" . $accessKey .
                 "&amount=" . $request->amount .
@@ -246,12 +247,19 @@ class PaymentController extends Controller
 
                 Log::info('Payment Success for orderId: ' . $orderId);
             } else {
+                // Payment failed or cancelled - update both checkout and booking
                 $checkout->update([
-                    'paymentStatus' => 'failed',
+                    'paymentStatus' => 'Failed',
                     'paymentData' => json_encode($request->all())
                 ]);
 
-                Log::info('Payment Failed for orderId: ' . $orderId);
+                // Also cancel the booking
+                $booking = $checkout->booking;
+                if ($booking) {
+                    $booking->update(['bookingStatus' => 'cancelled']);
+                }
+
+                Log::info('Payment Cancelled for orderId: ' . $orderId . ', resultCode: ' . $resultCode);
             }
 
             return response()->json([
@@ -352,10 +360,10 @@ class PaymentController extends Controller
             $description = $request->description ?? 'Booking ' . $request->bookingID;
 
             // VietQR Config
-            $bankId = config('services.vietqr.bank_id', '970415'); // VietinBank default
-            $accountNo = config('services.vietqr.account_no');
-            $accountName = config('services.vietqr.account_name');
-            $template = config('services.vietqr.template', 'compact');
+            $bankId = config('payment.vietqr.bank_id', '970415'); // VietinBank default
+            $accountNo = config('payment.vietqr.account_no');
+            $accountName = config('payment.vietqr.account_name');
+            $template = config('payment.vietqr.template', 'compact');
 
             // Generate QR using VietQR API
             $qrContent = "00020101021238{$bankId}0010A000000727012{accountNo}0208QRIBFTTA5303704{$request->amount}5802VN62{description}6304";
@@ -497,6 +505,87 @@ class PaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Payment verification failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/api/payment/cancel",
+     *     summary="Cancel payment",
+     *     tags={"Payment"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="checkoutID", type="integer", example=1)
+     *         )
+     *     ),
+     *     @OA\Response(response=200, description="Payment cancelled"),
+     *     @OA\Response(response=404, description="Checkout not found")
+     * )
+     */
+    public function cancelPayment(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'checkoutID' => 'required|integer|exists:checkout,checkoutID'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            $checkout = Checkout::find($request->checkoutID);
+
+            if (!$checkout) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Checkout not found'
+                ], 404);
+            }
+
+            // Verify user owns this checkout
+            $booking = $checkout->booking;
+            if (!$booking || $booking->userID != $user->userID) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized'
+                ], 403);
+            }
+
+            // Only allow cancelling pending payments
+            if ($checkout->paymentStatus === 'Completed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot cancel completed payment'
+                ], 400);
+            }
+
+            // Cancel checkout and booking - use 'Failed' status
+            $checkout->update(['paymentStatus' => 'Failed']);
+            $booking->update(['bookingStatus' => 'cancelled']);
+
+            Log::info('Payment cancelled by user', [
+                'checkoutID' => $checkout->checkoutID,
+                'bookingID' => $booking->bookingID,
+                'userID' => $user->userID
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment cancelled successfully'
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Cancel Payment Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel payment: ' . $e->getMessage()
             ], 500);
         }
     }

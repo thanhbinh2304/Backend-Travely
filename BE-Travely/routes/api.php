@@ -59,6 +59,9 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
+
+    // Promotion validation (requires auth)
+    Route::post('/promotions/validate', [PromotionController::class, 'validateCode']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::get('/is-admin', [AuthController::class, 'isAdmin']);
 });
@@ -77,6 +80,13 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::get('/user/bookings/{id}', [BookingController::class, 'show']);
     Route::patch('/user/bookings/{id}/cancel', [BookingController::class, 'cancel']);
 
+    // Cart Routes (User)
+    Route::get('/cart', [BookingController::class, 'getCart']);
+    Route::post('/cart', [BookingController::class, 'addToCart']);
+    Route::put('/cart/{bookingID}', [BookingController::class, 'updateCartItem']);
+    Route::delete('/cart/{bookingID}', [BookingController::class, 'removeFromCart']);
+    Route::delete('/cart', [BookingController::class, 'clearCart']);
+
     // User Invoice 
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::get('/invoices/{id}/download', [InvoiceController::class, 'download']);
@@ -84,6 +94,7 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     // Payment Routes (User)
     Route::post('/payment/momo/create', [PaymentController::class, 'createMoMoPayment']);
     Route::post('/payment/vietqr/create', [PaymentController::class, 'createVietQRPayment']);
+    Route::post('/payment/cancel', [PaymentController::class, 'cancelPayment']);
     Route::get('/payment/status/{checkoutID}', [PaymentController::class, 'getPaymentStatus']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 

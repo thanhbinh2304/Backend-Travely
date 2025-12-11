@@ -14,6 +14,7 @@ class Promotion extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'code',
         'description',
         'discount',
         'startDate',

@@ -185,6 +185,276 @@ class BookingController extends Controller
         }
     }
 
+    // ==================== CART METHODS ====================
+
+    /**
+     * Get user's cart (pending bookings)
+     */
+    public function getCart()
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            $cartItems = Booking::with(['tour.images', 'tour.reviews'])
+                ->where('userID', $user->userID)
+                ->where('paymentStatus', 'pending')
+                ->where('bookingStatus', 'confirmed') // Only confirmed, not cancelled
+                ->orderBy('bookingDate', 'desc')
+                ->get();
+
+            // Add calculated fields
+            $cartItems->each(function ($item) {
+                if ($item->tour) {
+                    $item->tour->avg_rating = $item->tour->reviews->avg('rating');
+                    $item->tour->review_count = $item->tour->reviews->count();
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'items' => $cartItems,
+                    'total' => $cartItems->count(),
+                    'subtotal' => $cartItems->sum('totalPrice')
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add to cart (create pending booking)
+     */
+    public function addToCart(Request $request)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            $validator = Validator::make($request->all(), [
+                'tourID' => 'required|integer|exists:tour,tourID',
+                'bookingDate' => 'required|date|after_or_equal:today',
+                'numAdults' => 'required|integer|min:1',
+                'numChildren' => 'required|integer|min:0',
+                'specialRequests' => 'nullable|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $tour = Tour::findOrFail($request->tourID);
+
+            // Check availability
+            if (!$tour->availability || $tour->quantity < ($request->numAdults + $request->numChildren)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tour không còn chỗ trống'
+                ], 400);
+            }
+
+            // Calculate total price
+            $totalPrice = ($request->numAdults * $tour->priceAdult) +
+                ($request->numChildren * $tour->priceChild);
+
+            // Check if already in cart (same tour, same date)
+            $existingCart = Booking::where('userID', $user->userID)
+                ->where('tourID', $request->tourID)
+                ->where('bookingDate', $request->bookingDate)
+                ->where('paymentStatus', 'pending')
+                ->first();
+
+            if ($existingCart) {
+                // Update existing cart item
+                $existingCart->numAdults = $request->numAdults;
+                $existingCart->numChildren = $request->numChildren;
+                $existingCart->totalPrice = $totalPrice;
+                $existingCart->specialRequests = $request->specialRequests ?? '';
+                $existingCart->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Cart updated successfully',
+                    'data' => $existingCart->load('tour.images')
+                ]);
+            }
+
+            // Create new cart item (pending booking)
+            $booking = Booking::create([
+                'tourID' => $request->tourID,
+                'userID' => $user->userID,
+                'bookingDate' => $request->bookingDate,
+                'numAdults' => $request->numAdults,
+                'numChildren' => $request->numChildren,
+                'totalPrice' => $totalPrice,
+                'paymentStatus' => 'pending',
+                'bookingStatus' => 'confirmed',
+                'specialRequests' => $request->specialRequests ?? ''
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Added to cart successfully',
+                'data' => $booking->load('tour.images')
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add to cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove from cart (delete pending booking)
+     */
+    public function removeFromCart($bookingID)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            $booking = Booking::where('bookingID', $bookingID)
+                ->where('userID', $user->userID)
+                ->where('paymentStatus', 'pending')
+                ->first();
+
+            if (!$booking) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cart item not found'
+                ], 404);
+            }
+
+            // Check if booking has checkout records
+            $hasCheckout = \App\Models\Checkout::where('bookingID', $bookingID)->exists();
+
+            if ($hasCheckout) {
+                // If has checkout, just cancel the booking instead of deleting
+                $booking->update([
+                    'bookingStatus' => 'cancelled'
+                ]);
+            } else {
+                // If no checkout, safe to delete
+                $booking->delete();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Removed from cart successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to remove from cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update cart item
+     */
+    public function updateCartItem($bookingID, Request $request)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            $validator = Validator::make($request->all(), [
+                'numAdults' => 'required|integer|min:1',
+                'numChildren' => 'required|integer|min:0',
+                'bookingDate' => 'required|date|after_or_equal:today',
+                'specialRequests' => 'nullable|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
+
+            $booking = Booking::where('bookingID', $bookingID)
+                ->where('userID', $user->userID)
+                ->where('paymentStatus', 'pending')
+                ->first();
+
+            if (!$booking) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cart item not found'
+                ], 404);
+            }
+
+            $tour = Tour::findOrFail($booking->tourID);
+
+            // Check availability
+            if (!$tour->availability || $tour->quantity < ($request->numAdults + $request->numChildren)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không đủ chỗ trống'
+                ], 400);
+            }
+
+            // Calculate new total price
+            $totalPrice = ($request->numAdults * $tour->priceAdult) +
+                ($request->numChildren * $tour->priceChild);
+
+            $booking->numAdults = $request->numAdults;
+            $booking->numChildren = $request->numChildren;
+            $booking->bookingDate = $request->bookingDate;
+            $booking->totalPrice = $totalPrice;
+            $booking->specialRequests = $request->specialRequests ?? '';
+            $booking->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cart updated successfully',
+                'data' => $booking->load('tour.images')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Clear cart (delete all pending bookings)
+     */
+    public function clearCart()
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+
+            Booking::where('userID', $user->userID)
+                ->where('paymentStatus', 'pending')
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cart cleared successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to clear cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     // ==================== ADMIN METHODS ====================
 
     /**

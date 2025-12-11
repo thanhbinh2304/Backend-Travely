@@ -332,4 +332,75 @@ class PromotionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * @OA\Post(
+     *     path="/api/promotions/validate",
+     *     summary="Validate promotion code",
+     *     tags={"Promotions"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"code"},
+     *             @OA\Property(property="code", type="string", example="SUMMER2025")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Promotion code is valid",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Promotion code is valid"),
+     *             @OA\Property(property="data", ref="#/components/schemas/Promotion")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Invalid or expired promotion code"
+     *     )
+     * )
+     */
+    public function validateCode(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'code' => 'required|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $now = now();
+            $promotion = Promotion::where('code', $request->code)
+                ->where('startDate', '<=', $now)
+                ->where('endDate', '>=', $now)
+                ->where('quantity', '>', 0)
+                ->first();
+
+            if (!$promotion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mã voucher không hợp lệ hoặc đã hết hạn'
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Promotion code is valid',
+                'data' => $promotion
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to validate promotion code',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
