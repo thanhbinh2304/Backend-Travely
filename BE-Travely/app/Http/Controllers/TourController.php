@@ -467,9 +467,20 @@ class TourController extends Controller
         $tours = Tour::with(['images'])
             ->where('availability', 1)
             ->where('quantity', '>', 0)
-            ->where('startDate', '>=', now())
-            ->orderBy('startDate', 'asc')
+            // Temporarily removed date filter to show all available tours
+            // ->where('startDate', '>=', now())
+            ->orderBy('startDate', 'desc')
             ->paginate(15);
+
+        Log::info('Available tours query result:', [
+            'count' => $tours->count(),
+            'first_tour' => $tours->first() ? [
+                'tourID' => $tours->first()->tourID,
+                'title' => $tours->first()->title,
+                'images_count' => $tours->first()->images ? $tours->first()->images->count() : 0,
+                'first_image' => $tours->first()->images->first() ?? null
+            ] : null
+        ]);
 
         return response()->json([
             'success' => true,
