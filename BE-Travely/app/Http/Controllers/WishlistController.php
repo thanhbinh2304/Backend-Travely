@@ -6,6 +6,7 @@ use App\Models\Wishlist;
 use App\Models\Tour;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class WishlistController extends Controller
@@ -105,13 +106,19 @@ class WishlistController extends Controller
     public function destroy($tourID)
     {
         try {
+            Log::info('Wishlist destroy request', ['tourID' => $tourID]);
             $user = JWTAuth::parseToken()->authenticate();
+            Log::info('User authenticated', ['userID' => $user->userID]);
 
             $wishlist = Wishlist::where('userID', $user->userID)
                 ->where('tourID', $tourID)
                 ->first();
 
             if (!$wishlist) {
+                Log::warning('Tour not found in wishlist', [
+                    'userID' => $user->userID,
+                    'tourID' => $tourID
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Tour not found in wishlist'
@@ -120,11 +127,21 @@ class WishlistController extends Controller
 
             $wishlist->delete();
 
+            Log::info('Tour removed from wishlist successfully', [
+                'userID' => $user->userID,
+                'tourID' => $tourID
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Tour removed from wishlist'
             ]);
         } catch (\Exception $e) {
+            Log::error('Error removing tour from wishlist', [
+                'tourID' => $tourID,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to remove tour',

@@ -87,13 +87,15 @@ Route::middleware(['auth:api', 'user'])->group(function () {
     Route::get('/payment/status/{checkoutID}', [PaymentController::class, 'getPaymentStatus']);
     Route::get('/payment/history', [PaymentController::class, 'getPaymentHistory']);
 
-    // Wishlist Routes (User)
-    Route::get('/wishlist', [WishlistController::class, 'index']);
-    Route::post('/wishlist', [WishlistController::class, 'store']);
-    Route::delete('/wishlist/{tourID}', [WishlistController::class, 'destroy']);
-    Route::post('/wishlist/toggle/{tourID}', [WishlistController::class, 'toggle']);
-    Route::get('/wishlist/share', [WishlistController::class, 'share']);
-    Route::delete('/wishlist/clear', [WishlistController::class, 'clear']);
+    // Wishlist Routes (User) - Higher rate limit
+    Route::middleware('throttle:wishlist')->group(function () {
+        Route::get('/wishlist', [WishlistController::class, 'index']);
+        Route::post('/wishlist', [WishlistController::class, 'store']);
+        Route::delete('/wishlist/{tourID}', [WishlistController::class, 'destroy']);
+        Route::post('/wishlist/toggle/{tourID}', [WishlistController::class, 'toggle']);
+        Route::get('/wishlist/share', [WishlistController::class, 'share']);
+        Route::delete('/wishlist/clear', [WishlistController::class, 'clear']);
+    });
 
     // Review Routes (User)
     Route::get('/user/reviews', [ReviewController::class, 'myReviews']);
