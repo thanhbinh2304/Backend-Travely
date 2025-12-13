@@ -32,10 +32,19 @@ Route::post('/login', [AuthController::class, 'login']);
 // Social Login Routes
 Route::post('/login/google', [AuthController::class, 'loginWithGoogle']);
 Route::post('/login/facebook', [AuthController::class, 'loginWithFacebook']);
+Route::post('/auth/google/callback', [AuthController::class, 'googleCallback']);
 Route::post('/auth/facebook/callback', [AuthController::class, 'facebookCallback']);
 
 // JWT Refresh Token (can be accessed with expired token)
 Route::post('/refresh', [AuthController::class, 'refresh']);
+
+// Email Verification Routes
+Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+Route::post('/resend-verification', [AuthController::class, 'resendVerification']);
+
+// Password Reset Routes
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 // Public Tour Routes (No authentication required)
 Route::get('/tours', [TourController::class, 'index']);
