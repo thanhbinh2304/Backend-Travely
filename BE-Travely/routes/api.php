@@ -162,9 +162,11 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
 
     // Booking Management (Admin only)
     Route::get('/admin/bookings', [BookingController::class, 'adminIndex']);
+    Route::get('/admin/bookings/{id}', [BookingController::class, 'adminShow']);
     Route::patch('/admin/bookings/{id}/confirm', [BookingController::class, 'confirmBooking']);
     Route::patch('/admin/bookings/{id}/reject', [BookingController::class, 'rejectBooking']);
     Route::patch('/admin/bookings/{id}/status', [BookingController::class, 'updateStatus']);
+    Route::delete('/admin/bookings/{id}', [BookingController::class, 'destroy']);
     Route::get('/admin/bookings/export', [BookingController::class, 'exportReport']);
 
     // Statistics & Analytics (Admin only)
@@ -182,6 +184,7 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/payments/statistics', [PaymentController::class, 'getPaymentStatistics']);
     Route::get('/admin/payments/{id}', [PaymentController::class, 'getPaymentDetails']);
     Route::post('/admin/payments/{id}/refund', [PaymentController::class, 'refundPayment']);
+    Route::delete('/admin/payments/{id}', [PaymentController::class, 'destroy']);
     Route::post('/admin/payment/vietqr/verify', [PaymentController::class, 'verifyVietQRPayment']);
 
     // Review Management (Admin only)

@@ -1028,4 +1028,43 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Delete payment (Admin only)
+     */
+    public function destroy($id)
+    {
+        try {
+            $checkout = Checkout::find($id);
+
+            if (!$checkout) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payment not found'
+                ], 404);
+            }
+
+            // Prevent deletion of completed/paid payments
+            if (in_array($checkout->paymentStatus, ['paid', 'completed'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete completed payment. Please refund first.'
+                ], 400);
+            }
+
+            $checkout->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Delete Payment Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete payment',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

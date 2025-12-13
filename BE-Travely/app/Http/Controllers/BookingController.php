@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Tour;
 use App\Models\History;
+use App\Models\Checkout;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -537,6 +538,34 @@ class BookingController extends Controller
     }
 
     /**
+     * Get booking detail (Admin only)
+     */
+    public function adminShow($id)
+    {
+        try {
+            $booking = Booking::with(['user', 'tour', 'checkout', 'invoice'])->find($id);
+
+            if (!$booking) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking not found'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $booking
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch booking detail',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Confirm booking (Admin only)
      */
     public function confirmBooking($id)
@@ -855,6 +884,50 @@ class BookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to generate report',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete booking (Admin only)
+     */
+    public function destroy($id)
+    {
+        try {
+            $booking = Booking::find($id);
+
+            if (!$booking) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking not found'
+                ], 404);
+            }
+
+            // Check if booking has associated checkout/payment
+            $checkout = Checkout::where('bookingID', $id)->first();
+            if ($checkout && in_array($checkout->paymentStatus, ['paid', 'completed'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete booking with completed payment. Please refund first.'
+                ], 400);
+            }
+
+            // Delete associated records
+            if ($checkout) {
+                $checkout->delete();
+            }
+
+            $booking->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete booking',
                 'error' => $e->getMessage()
             ], 500);
         }

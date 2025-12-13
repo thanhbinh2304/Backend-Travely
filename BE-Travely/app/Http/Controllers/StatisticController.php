@@ -90,21 +90,33 @@ class StatisticController extends Controller
                 ->where('role_id', 2)
                 ->count();
 
+            // Calculate monthly comparisons
+            $lastMonth = now()->subMonth();
+            $bookingsThisMonth = Booking::whereYear('bookingDate', now()->year)
+                ->whereMonth('bookingDate', now()->month)
+                ->count();
+
+            $revenueThisMonth = Booking::whereYear('bookingDate', now()->year)
+                ->whereMonth('bookingDate', now()->month)
+                ->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid')
+                ->sum('totalPrice');
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'revenue' => [
-                        'total' => $totalRevenue,
-                        'by_payment_method' => $paymentStats
-                    ],
-                    'bookings' => $bookingsSummary,
-                    'tours' => [
-                        'total' => $totalTours
-                    ],
-                    'users' => [
-                        'total' => $totalUsers,
-                        'new' => $newUsers
-                    ]
+                    // Flat structure for frontend
+                    'total_users' => $totalUsers,
+                    'total_tours' => $totalTours,
+                    'total_bookings' => $bookingsSummary['total'],
+                    'total_revenue' => $totalRevenue,
+                    'bookings_this_month' => $bookingsThisMonth,
+                    'revenue_this_month' => $revenueThisMonth,
+                    'new_users' => $newUsers,
+
+                    // Detailed breakdowns (optional, for future use)
+                    'bookings_summary' => $bookingsSummary,
+                    'payment_methods' => $paymentStats,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -150,12 +162,17 @@ class StatisticController extends Controller
                 ->sum('totalPrice');
 
             // Status summary
-            $statusSummary = [
-                'pending' => $bookings->where('bookingStatus', 'pending')->count(),
-                'confirmed' => $bookings->where('bookingStatus', 'confirmed')->count(),
-                'completed' => $bookings->where('bookingStatus', 'completed')->count(),
-                'cancelled' => $bookings->where('bookingStatus', 'cancelled')->count(),
-            ];
+            $pending = $bookings->where('bookingStatus', 'pending')->count();
+            $confirmed = $bookings->where('bookingStatus', 'confirmed')->count();
+            $completed = $bookings->where('bookingStatus', 'completed')->count();
+            $cancelled = $bookings->where('bookingStatus', 'cancelled')->count();
+
+            // Calculate average booking value
+            $paidBookings = $bookings->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid');
+            $avgBookingValue = $paidBookings->count() > 0
+                ? $paidBookings->avg('totalPrice')
+                : 0;
 
             // Group revenue by time period
             $groupBy = $request->get('group_by', 'day'); // day|month|year
@@ -188,8 +205,14 @@ class StatisticController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
+                    // Flat structure matching frontend
+                    'total_bookings' => $bookings->count(),
+                    'pending' => $pending,
+                    'confirmed' => $confirmed,
+                    'completed' => $completed,
+                    'cancelled' => $cancelled,
                     'total_revenue' => $totalRevenue,
-                    'status_summary' => $statusSummary,
+                    'average_booking_value' => round($avgBookingValue, 0),
                     'revenue_by_time' => $revenueByPeriod,
                 ]
             ]);
@@ -225,36 +248,66 @@ class StatisticController extends Controller
 
             $bookings = $query->get();
 
-            $revenue = [
-                'total' => $bookings->whereIn('bookingStatus', ['confirmed', 'completed'])
-                    ->where('paymentStatus', 'paid')
-                    ->sum('totalPrice'),
-                'by_status' => [
-                    'pending' => [
-                        'count' => $bookings->where('bookingStatus', 'pending')->count(),
-                        'revenue' => $bookings->where('bookingStatus', 'pending')->sum('totalPrice')
-                    ],
-                    'confirmed' => [
-                        'count' => $bookings->where('bookingStatus', 'confirmed')->count(),
-                        'revenue' => $bookings->where('bookingStatus', 'confirmed')
-                            ->where('paymentStatus', 'paid')->sum('totalPrice')
-                    ],
-                    'completed' => [
-                        'count' => $bookings->where('bookingStatus', 'completed')->count(),
-                        'revenue' => $bookings->where('bookingStatus', 'completed')
-                            ->where('paymentStatus', 'paid')->sum('totalPrice')
-                    ],
-                    'cancelled' => [
-                        'count' => $bookings->where('bookingStatus', 'cancelled')->count(),
-                        'refund' => $bookings->where('bookingStatus', 'cancelled')
-                            ->where('paymentStatus', 'refunded')->sum('totalPrice')
-                    ],
-                ],
-            ];
+            $totalRevenue = $bookings->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid')
+                ->sum('totalPrice');
+
+            // Revenue by period (for charts)
+            $groupBy = $request->get('period', 'month');
+            if ($groupBy === 'day') {
+                $dateExpr = DB::raw("DATE(bookingDate)");
+            } elseif ($groupBy === 'week') {
+                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%u')"); // Year-Week
+            } elseif ($groupBy === 'year') {
+                $dateExpr = DB::raw("YEAR(bookingDate)");
+            } else { // month (default)
+                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%m')");
+            }
+
+            $revenueByPeriod = Booking::select(
+                $dateExpr . ' as period',
+                DB::raw("SUM(totalPrice) as revenue")
+            )
+                ->whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid')
+                ->when($request->filled('start_date'), function ($q) use ($request) {
+                    $q->whereDate('bookingDate', '>=', $request->start_date);
+                })
+                ->when($request->filled('end_date'), function ($q) use ($request) {
+                    $q->whereDate('bookingDate', '<=', $request->end_date);
+                })
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            // Revenue by tour
+            $revenueByTour = Booking::join('tour', 'booking.tourID', '=', 'tour.tourID')
+                ->whereIn('booking.bookingStatus', ['confirmed', 'completed'])
+                ->where('booking.paymentStatus', 'paid')
+                ->when($request->filled('start_date'), function ($q) use ($request) {
+                    $q->whereDate('booking.bookingDate', '>=', $request->start_date);
+                })
+                ->when($request->filled('end_date'), function ($q) use ($request) {
+                    $q->whereDate('booking.bookingDate', '<=', $request->end_date);
+                })
+                ->groupBy('tour.tourID', 'tour.tourName')
+                ->select(
+                    'tour.tourID',
+                    'tour.tourName',
+                    DB::raw('SUM(booking.totalPrice) as revenue'),
+                    DB::raw('COUNT(booking.bookingID) as bookings')
+                )
+                ->orderByDesc('revenue')
+                ->limit(10)
+                ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $revenue
+                'data' => [
+                    'total_revenue' => $totalRevenue,
+                    'revenue_by_period' => $revenueByPeriod,
+                    'revenue_by_tour' => $revenueByTour,
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -368,10 +421,10 @@ class StatisticController extends Controller
                 ->groupBy('tour.tourID', 'tour.tourName', 'tour.destination', 'tour.price')
                 ->select(
                     'tour.tourID',
-                    'tour.tourName',
+                    'tour.tourName as title',  // Renamed to match frontend
                     'tour.destination',
                     'tour.price',
-                    DB::raw('COUNT(booking.bookingID) as bookings_count'),
+                    DB::raw('COUNT(booking.bookingID) as total_bookings'),  // Renamed to match frontend
                     DB::raw('SUM(booking.totalPrice) as total_revenue'),
                     DB::raw('SUM(booking.numAdults + booking.numChildren) as total_guests')
                 )
