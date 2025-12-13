@@ -12,7 +12,7 @@
         "laravel/sanctum": "^3.0",
         "laravel/socialite": "^5.23",
         "laravel/tinker": "^2.7",
-        "predis/predis": "*",
+        "predis/predis": "^3.3",
         "tymon/jwt-auth": "^2.2"
     },
     "require-dev": {

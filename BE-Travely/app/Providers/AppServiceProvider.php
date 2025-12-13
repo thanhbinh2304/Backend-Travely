@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
+use App\Models\Tour;
+use App\Observers\TourObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,5 +30,8 @@ class AppServiceProvider extends ServiceProvider
         if (config('app.env') !== 'local' || request()->secure()) {
             URL::forceScheme('https');
         }
+
+        // Register Tour Observer for automatic cache clearing
+        Tour::observe(TourObserver::class);
     }
 }

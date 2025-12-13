@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tour;
 use App\Models\TourImage;
 use App\Models\TourItinerary;
+use App\Services\TourCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,12 @@ use App\Models\Review;
 
 class TourController extends Controller
 {
+    protected $cacheService;
+
+    public function __construct(TourCacheService $cacheService)
+    {
+        $this->cacheService = $cacheService;
+    }
     /**
      * Upload tour image
      * Admin only
@@ -220,19 +227,19 @@ class TourController extends Controller
      */
     public function show($id)
     {
-        $tour = Tour::with(['images', 'itineraries', 'reviews.user'])->find($id);
+        try {
+            $tour = $this->cacheService->getById($id);
 
-        if (!$tour) {
+            return response()->json([
+                'success' => true,
+                'data' => $tour
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tour not found'
             ], 404);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $tour
-        ]);
     }
 
     /**
@@ -411,13 +418,10 @@ class TourController extends Controller
      * Get featured/popular tours
      * Public access
      */
-    public function featured()
+    public function featured(Request $request)
     {
-        $tours = Tour::with(['images'])
-            ->where('availability', 1)
-            ->orderBy('tourID', 'desc')
-            ->limit(6)
-            ->get();
+        $limit = $request->get('limit', 6);
+        $tours = $this->cacheService->getFeatured($limit);
 
         return response()->json([
             'success' => true,
