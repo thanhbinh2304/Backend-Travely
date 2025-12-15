@@ -303,9 +303,9 @@ class UserController extends Controller
         $query = Booking::with(['tour.images', 'invoice'])
             ->where('userID', $userId);
 
-        // Filter by status
+        // Filter by status (DB column is `bookingStatus`)
         if ($request->has('status')) {
-            $query->where('status', $request->status);
+            $query->where('bookingStatus', $request->status);
         }
 
         // Filter by date range

@@ -58,6 +58,37 @@ class ReviewController extends Controller
     }
 
     /**
+     * GET /reviews/summary/{tourID} - Get average rating and total approved reviews for a tour
+     */
+    public function summary($tourID)
+    {
+        try {
+            $stats = Review::where('tourID', $tourID)
+                ->where('status', Review::STATUS_APPROVED)
+                ->selectRaw('AVG(rating) as avg_rating, COUNT(*) as total_reviews')
+                ->first();
+
+            // Ensure numeric types
+            $avg = $stats->avg_rating ? (float) number_format((float) $stats->avg_rating, 2) : 0.0;
+            $total = $stats->total_reviews ? (int) $stats->total_reviews : 0;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'avg_rating' => $avg,
+                    'total_reviews' => $total
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get review summary',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * GET /reviews/{id} - Get single review
      */
     public function show($id)

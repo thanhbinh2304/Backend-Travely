@@ -57,6 +57,8 @@ Route::get('/tours/{id}', [TourController::class, 'show']);
 // Public Review Routes
 Route::get('/reviews', [ReviewController::class, 'index']);
 Route::get('/reviews/{id}', [ReviewController::class, 'show']);
+// Summary (avg + total) for a tour's approved reviews
+Route::get('/reviews/summary/{tourID}', [ReviewController::class, 'summary']);
 
 // Public Promotion Routes
 Route::get('/promotions', [PromotionController::class, 'index']);

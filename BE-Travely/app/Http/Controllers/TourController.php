@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Booking;
 use App\Models\Review;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class TourController extends Controller
 {
@@ -109,6 +110,40 @@ class TourController extends Controller
         // Pagination
         $perPage = $request->get('per_page', 15);
         $tours = $query->paginate($perPage);
+
+        // Attach avg_rating and total_reviews (approved only) for the current page
+        try {
+            // Use items() to get the current page items as an array and operate on a Collection
+            $items = collect($tours->items());
+            $tourIds = $items->pluck('tourID')->toArray();
+            if (!empty($tourIds)) {
+                $stats = Review::whereIn('tourID', $tourIds)
+                    ->where('status', Review::STATUS_APPROVED)
+                    ->groupBy('tourID')
+                    ->select('tourID', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as total_reviews'))
+                    ->get()
+                    ->keyBy('tourID');
+
+                $items = $items->map(function ($tour) use ($stats) {
+                    $s = $stats->has($tour->tourID) ? $stats->get($tour->tourID) : null;
+                    $tour->avg_rating = $s ? (float) number_format((float) $s->avg_rating, 2) : 0.0;
+                    $tour->total_reviews = $s ? (int) $s->total_reviews : 0;
+                    return $tour;
+                });
+
+                // Rebuild paginator with modified items while preserving pagination meta
+                $tours = new LengthAwarePaginator(
+                    $items->values()->all(),
+                    $tours->total(),
+                    $tours->perPage(),
+                    $tours->currentPage(),
+                    ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page']
+                );
+            }
+        } catch (\Exception $e) {
+            // non-fatal: if stats fail, still return tours without ratings
+            Log::warning('Failed to attach review stats to tours: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -420,8 +455,46 @@ class TourController extends Controller
      */
     public function featured(Request $request)
     {
-        $limit = $request->get('limit', 6);
-        $tours = $this->cacheService->getFeatured($limit);
+        $limit = (int) $request->get('limit', 6);
+
+        // Get top tour IDs by average review rating
+        $topTourIds = Review::select('tourID', DB::raw('AVG(rating) as avg_rating'))
+            ->groupBy('tourID')
+            ->orderByDesc('avg_rating')
+            ->limit($limit)
+            ->pluck('tourID')
+            ->toArray();
+
+        if (empty($topTourIds)) {
+            // Fallback to cacheService if no reviews yet
+            $tours = $this->cacheService->getFeatured($limit);
+            return response()->json([
+                'success' => true,
+                'data' => $tours
+            ]);
+        }
+
+        // Load tours with images and preserve order from $topTourIds
+        $tours = Tour::with(['images'])
+            ->whereIn('tourID', $topTourIds)
+            ->get()
+            ->sortBy(function ($t) use ($topTourIds) {
+                return array_search($t->tourID, $topTourIds);
+            })
+            ->values();
+
+        // Attach average rating per tour for frontend convenience
+        $averages = Review::whereIn('tourID', $topTourIds)
+            ->groupBy('tourID')
+            ->select('tourID', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as total_reviews'))
+            ->get()
+            ->keyBy('tourID');
+
+        foreach ($tours as $tour) {
+            $s = $averages->has($tour->tourID) ? $averages->get($tour->tourID) : null;
+            $tour->avg_rating = $s ? (float) number_format((float) $s->avg_rating, 2) : 0.0;
+            $tour->total_reviews = $s ? (int) $s->total_reviews : 0;
+        }
 
         return response()->json([
             'success' => true,

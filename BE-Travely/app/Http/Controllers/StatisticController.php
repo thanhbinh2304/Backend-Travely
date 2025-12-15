@@ -10,6 +10,7 @@ use App\Models\Users;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class StatisticController extends Controller
 {
@@ -251,7 +252,10 @@ class StatisticController extends Controller
                 ->sum('totalPrice');
 
             // Revenue by period (for charts)
-            $groupBy = $request->get('period', 'month');
+            Log::info('🔍 Query params:', $request->query());
+            Log::info('🔍 Full URL:', [$request->fullUrl()]);
+
+            $groupBy = strtolower($request->query('period', 'month'));
             if ($groupBy === 'day') {
                 $dateFormat = "DATE(bookingDate)";
             } elseif ($groupBy === 'week') {
@@ -261,6 +265,7 @@ class StatisticController extends Controller
             } else { // month (default)
                 $dateFormat = "DATE_FORMAT(bookingDate, '%Y-%m')";
             }
+            Log::info('🧮 Using date format:', [$dateFormat]);
 
             $revenueByPeriod = Booking::selectRaw(
                 $dateFormat . " as period, SUM(totalPrice) as revenue"
