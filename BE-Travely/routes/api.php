@@ -27,7 +27,7 @@ use App\Http\Controllers\NotificationController;
 
 // Public Auth Routes
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->name('login');
 
 // Social Login Routes
 Route::post('/login/google', [AuthController::class, 'loginWithGoogle']);
@@ -177,7 +177,9 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::get('/admin/statistics/top-tours', [StatisticController::class, 'topTours']);
     Route::get('/admin/statistics/tour-ratings', [StatisticController::class, 'tourRatings']);
     Route::get('/admin/statistics/user-growth', [StatisticController::class, 'userGrowth']);
+    Route::get('/admin/statistics/new-users', [StatisticController::class, 'userGrowth']); // Alias for user-growth
     Route::get('/admin/statistics/financial-report', [StatisticController::class, 'financialReport']);
+
 
     // Payment Management (Admin only)
     Route::get('/admin/payments', [PaymentController::class, 'getAllPayments']);
@@ -198,3 +200,8 @@ Route::middleware(['auth:api', 'admin'])->group(function () {
     Route::put('/promotions/{id}', [PromotionController::class, 'update']);
     Route::delete('/promotions/{id}', [PromotionController::class, 'destroy']);
 });
+
+Route::get('/admin/statistics/export/booking-stats', [StatisticController::class, 'exportBookingStats'])->middleware('admin');
+Route::get('/admin/statistics/export/top-tours', [StatisticController::class, 'exportTopTours'])->middleware('admin');
+Route::get('/admin/statistics/export/revenue', [StatisticController::class, 'exportRevenue'])->middleware('admin');
+Route::get('/admin/statistics/export/user-growth', [StatisticController::class, 'exportUserGrowth'])->middleware('admin');

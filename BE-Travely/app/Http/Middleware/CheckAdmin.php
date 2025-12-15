@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
-
+use Illuminate\Support\Facades\Log;
 class CheckAdmin
 {
     /**
@@ -20,7 +20,16 @@ class CheckAdmin
     public function handle(Request $request, Closure $next)
     {
         try {
-            $user = JWTAuth::parseToken()->authenticate();
+            $token = urldecode($request->bearerToken() ?? $request->query('token'));
+
+            if ($token) {
+                $user = JWTAuth::setToken($token)->authenticate();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not provided'
+                ], 401);
+            }
 
             if (!$user) {
                 return response()->json([
@@ -29,7 +38,6 @@ class CheckAdmin
                 ], 404);
             }
 
-            // Check if user is admin (role_id = 1)
             if ($user->role_id !== 1) {
                 return response()->json([
                     'success' => false,

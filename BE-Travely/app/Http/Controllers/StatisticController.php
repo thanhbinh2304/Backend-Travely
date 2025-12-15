@@ -178,17 +178,15 @@ class StatisticController extends Controller
             $groupBy = $request->get('group_by', 'day'); // day|month|year
 
             if ($groupBy === 'month') {
-                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%m-01')");
+                $dateFormat = "DATE_FORMAT(bookingDate, '%Y-%m-01')";
             } elseif ($groupBy === 'year') {
-                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-01-01')");
+                $dateFormat = "DATE_FORMAT(bookingDate, '%Y-01-01')";
             } else { // day
-                $dateExpr = DB::raw("DATE(bookingDate)");
+                $dateFormat = "DATE(bookingDate)";
             }
 
-            $revenueByPeriod = Booking::select(
-                $dateExpr . ' as period',
-                DB::raw("SUM(totalPrice) as total_revenue"),
-                DB::raw("COUNT(*) as bookings_count")
+            $revenueByPeriod = Booking::selectRaw(
+                $dateFormat . " as period, SUM(totalPrice) as total_revenue, COUNT(*) as bookings_count"
             )
                 ->whereIn('bookingStatus', ['confirmed', 'completed'])
                 ->where('paymentStatus', 'paid')
@@ -255,18 +253,17 @@ class StatisticController extends Controller
             // Revenue by period (for charts)
             $groupBy = $request->get('period', 'month');
             if ($groupBy === 'day') {
-                $dateExpr = DB::raw("DATE(bookingDate)");
+                $dateFormat = "DATE(bookingDate)";
             } elseif ($groupBy === 'week') {
-                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%u')"); // Year-Week
+                $dateFormat = "DATE_FORMAT(bookingDate, '%Y-%u')"; // Year-Week
             } elseif ($groupBy === 'year') {
-                $dateExpr = DB::raw("YEAR(bookingDate)");
+                $dateFormat = "YEAR(bookingDate)";
             } else { // month (default)
-                $dateExpr = DB::raw("DATE_FORMAT(bookingDate, '%Y-%m')");
+                $dateFormat = "DATE_FORMAT(bookingDate, '%Y-%m')";
             }
 
-            $revenueByPeriod = Booking::select(
-                $dateExpr . ' as period',
-                DB::raw("SUM(totalPrice) as revenue")
+            $revenueByPeriod = Booking::selectRaw(
+                $dateFormat . " as period, SUM(totalPrice) as revenue"
             )
                 ->whereIn('bookingStatus', ['confirmed', 'completed'])
                 ->where('paymentStatus', 'paid')
@@ -290,10 +287,10 @@ class StatisticController extends Controller
                 ->when($request->filled('end_date'), function ($q) use ($request) {
                     $q->whereDate('booking.bookingDate', '<=', $request->end_date);
                 })
-                ->groupBy('tour.tourID', 'tour.tourName')
+                ->groupBy('tour.tourID', 'tour.title')
                 ->select(
                     'tour.tourID',
-                    'tour.tourName',
+                    'tour.title as tourName',
                     DB::raw('SUM(booking.totalPrice) as revenue'),
                     DB::raw('COUNT(booking.bookingID) as bookings')
                 )
@@ -418,12 +415,12 @@ class StatisticController extends Controller
             }
 
             $tours = $query
-                ->groupBy('tour.tourID', 'tour.tourName', 'tour.destination', 'tour.price')
+                ->groupBy('tour.tourID', 'tour.title', 'tour.destination', 'tour.priceAdult')
                 ->select(
                     'tour.tourID',
-                    'tour.tourName as title',  // Renamed to match frontend
+                    'tour.title',  // Use correct column name
                     'tour.destination',
-                    'tour.price',
+                    'tour.priceAdult as price',
                     DB::raw('COUNT(booking.bookingID) as total_bookings'),  // Renamed to match frontend
                     DB::raw('SUM(booking.totalPrice) as total_revenue'),
                     DB::raw('SUM(booking.numAdults + booking.numChildren) as total_guests')
@@ -469,10 +466,10 @@ class StatisticController extends Controller
             }
 
             $stats = $query
-                ->groupBy('tour.tourID', 'tour.tourName', 'tour.destination')
+                ->groupBy('tour.tourID', 'tour.title', 'tour.destination')
                 ->select(
                     'tour.tourID',
-                    'tour.tourName',
+                    'tour.title as tourName',
                     'tour.destination',
                     DB::raw('AVG(review.rating) as avg_rating'),
                     DB::raw('COUNT(review.reviewID) as total_reviews'),
@@ -530,16 +527,15 @@ class StatisticController extends Controller
             $groupBy = $request->get('group_by', 'day');
 
             if ($groupBy === 'month') {
-                $dateExpr = DB::raw("DATE_FORMAT(created_at, '%Y-%m-01')");
+                $dateFormat = "DATE_FORMAT(created_at, '%Y-%m-01')";
             } elseif ($groupBy === 'year') {
-                $dateExpr = DB::raw("DATE_FORMAT(created_at, '%Y-01-01')");
+                $dateFormat = "DATE_FORMAT(created_at, '%Y-01-01')";
             } else {
-                $dateExpr = DB::raw("DATE(created_at)");
+                $dateFormat = "DATE(created_at)";
             }
 
-            $usersByPeriod = Users::select(
-                $dateExpr . ' as period',
-                DB::raw('COUNT(*) as new_users')
+            $usersByPeriod = Users::selectRaw(
+                $dateFormat . ' as period, COUNT(*) as new_users'
             )
                 ->whereBetween('created_at', [
                     Carbon::parse($start)->startOfDay(),
@@ -870,5 +866,319 @@ class StatisticController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/admin/statistics/export/booking-stats",
+     *     summary="Export booking statistics to CSV",
+     *     tags={"Statistics"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="CSV file download")
+     * )
+     */
+    public function exportBookingStats(Request $request)
+    {
+        try {
+            $query = Booking::query();
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('bookingDate', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('bookingDate', '<=', $request->end_date);
+            }
+
+            $bookings = $query->get();
+
+            $filename = 'booking_statistics_' . date('Y-m-d_His') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function () use ($bookings) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['Booking Statistics Report']);
+                fputcsv($file, ['Generated on: ' . date('Y-m-d H:i:s')]);
+                fputcsv($file, []);
+
+                // Summary
+                fputcsv($file, ['Summary']);
+                fputcsv($file, ['Total Bookings', $bookings->count()]);
+                fputcsv($file, ['Pending', $bookings->where('bookingStatus', 'pending')->count()]);
+                fputcsv($file, ['Confirmed', $bookings->where('bookingStatus', 'confirmed')->count()]);
+                fputcsv($file, ['Completed', $bookings->where('bookingStatus', 'completed')->count()]);
+                fputcsv($file, ['Cancelled', $bookings->where('bookingStatus', 'cancelled')->count()]);
+                fputcsv($file, ['Total Revenue', number_format($bookings->whereIn('bookingStatus', ['confirmed', 'completed'])->where('paymentStatus', 'paid')->sum('totalPrice'), 2)]);
+                fputcsv($file, []);
+
+                // Status breakdown
+                fputcsv($file, ['Status', 'Count', 'Percentage']);
+                $total = $bookings->count();
+                foreach (['pending', 'confirmed', 'completed', 'cancelled'] as $status) {
+                    $count = $bookings->where('bookingStatus', $status)->count();
+                    $percentage = $total > 0 ? round(($count / $total) * 100, 2) : 0;
+                    fputcsv($file, [ucfirst($status), $count, $percentage . '%']);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export booking stats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/admin/statistics/export/top-tours",
+     *     summary="Export top tours to CSV",
+     *     tags={"Statistics"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="CSV file download")
+     * )
+     */
+    public function exportTopTours(Request $request)
+    {
+        try {
+            $limit = $request->get('limit', 50);
+
+            $query = Booking::join('tour', 'booking.tourID', '=', 'tour.tourID')
+                ->whereIn('booking.bookingStatus', ['confirmed', 'completed'])
+                ->where('booking.paymentStatus', 'paid');
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('booking.bookingDate', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('booking.bookingDate', '<=', $request->end_date);
+            }
+
+            $tours = $query
+                ->groupBy('tour.tourID', 'tour.title', 'tour.destination', 'tour.priceAdult')
+                ->select(
+                    'tour.tourID',
+                    'tour.title',
+                    'tour.destination',
+                    'tour.priceAdult as price',
+                    DB::raw('COUNT(booking.bookingID) as total_bookings'),
+                    DB::raw('SUM(booking.totalPrice) as total_revenue'),
+                    DB::raw('SUM(booking.numAdults + booking.numChildren) as total_guests')
+                )
+                ->orderByDesc('total_revenue')
+                ->limit($limit)
+                ->get();
+
+            $filename = 'top_tours_' . date('Y-m-d_His') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function () use ($tours) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['Top Tours Report']);
+                fputcsv($file, ['Generated on: ' . date('Y-m-d H:i:s')]);
+                fputcsv($file, []);
+                fputcsv($file, ['Rank', 'Tour ID', 'Tour Name', 'Destination', 'Price (Adult)', 'Total Bookings', 'Total Revenue', 'Total Guests']);
+
+                $rank = 1;
+                foreach ($tours as $tour) {
+                    fputcsv($file, [
+                        $rank++,
+                        $tour->tourID,
+                        $tour->title,
+                        $tour->destination,
+                        number_format($tour->price, 2),
+                        $tour->total_bookings,
+                        number_format($tour->total_revenue, 2),
+                        $tour->total_guests
+                    ]);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export top tours',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/admin/statistics/export/revenue",
+     *     summary="Export revenue statistics to CSV",
+     *     tags={"Statistics"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="CSV file download")
+     * )
+     */
+    public function exportRevenue(Request $request)
+    {
+        try {
+            $query = Booking::whereIn('bookingStatus', ['confirmed', 'completed'])
+                ->where('paymentStatus', 'paid');
+
+            if ($request->filled('start_date')) {
+                $query->whereDate('bookingDate', '>=', $request->start_date);
+            }
+            if ($request->filled('end_date')) {
+                $query->whereDate('bookingDate', '<=', $request->end_date);
+            }
+
+            $bookings = $query->get();
+            $totalRevenue = $bookings->sum('totalPrice');
+
+            // Revenue by tour
+            $revenueByTour = Booking::join('tour', 'booking.tourID', '=', 'tour.tourID')
+                ->whereIn('booking.bookingStatus', ['confirmed', 'completed'])
+                ->where('booking.paymentStatus', 'paid')
+                ->when($request->filled('start_date'), function ($q) use ($request) {
+                    $q->whereDate('booking.bookingDate', '>=', $request->start_date);
+                })
+                ->when($request->filled('end_date'), function ($q) use ($request) {
+                    $q->whereDate('booking.bookingDate', '<=', $request->end_date);
+                })
+                ->groupBy('tour.tourID', 'tour.title')
+                ->select(
+                    'tour.tourID',
+                    'tour.title as tourName',
+                    DB::raw('SUM(booking.totalPrice) as revenue'),
+                    DB::raw('COUNT(booking.bookingID) as bookings')
+                )
+                ->orderByDesc('revenue')
+                ->get();
+
+            $filename = 'revenue_statistics_' . date('Y-m-d_His') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function () use ($totalRevenue, $revenueByTour) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['Revenue Statistics Report']);
+                fputcsv($file, ['Generated on: ' . date('Y-m-d H:i:s')]);
+                fputcsv($file, []);
+                fputcsv($file, ['Total Revenue', number_format($totalRevenue, 2)]);
+                fputcsv($file, []);
+                fputcsv($file, ['Tour ID', 'Tour Name', 'Bookings', 'Revenue']);
+
+                foreach ($revenueByTour as $tour) {
+                    fputcsv($file, [
+                        $tour->tourID,
+                        $tour->tourName,
+                        $tour->bookings,
+                        number_format($tour->revenue, 2)
+                    ]);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export revenue stats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * @OA\Get(
+     *     path="/api/admin/statistics/export/user-growth",
+     *     summary="Export user growth statistics to CSV",
+     *     tags={"Statistics"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(response=200, description="CSV file download")
+     * )
+     */
+    public function exportUserGrowth(Request $request)
+    {
+        try {
+            $start = $request->get('start_date');
+            $end = $request->get('end_date');
+
+            if (!$start || !$end) {
+                $end = Carbon::today();
+                $start = $end->copy()->subDays(30);
+            }
+
+            $totalUsers = Users::where('role_id', 2)->count();
+            $newUsers = Users::whereBetween('created_at', [
+                Carbon::parse($start)->startOfDay(),
+                Carbon::parse($end)->endOfDay()
+            ])->where('role_id', 2)->count();
+
+            $groupBy = $request->get('group_by', 'day');
+
+            if ($groupBy === 'month') {
+                $dateFormat = "DATE_FORMAT(created_at, '%Y-%m-01')";
+            } elseif ($groupBy === 'year') {
+                $dateFormat = "DATE_FORMAT(created_at, '%Y-01-01')";
+            } else {
+                $dateFormat = "DATE(created_at)";
+            }
+
+            $usersByPeriod = Users::selectRaw(
+                $dateFormat . " as period, COUNT(*) as new_users"
+            )
+                ->whereBetween('created_at', [
+                    Carbon::parse($start)->startOfDay(),
+                    Carbon::parse($end)->endOfDay()
+                ])
+                ->where('role_id', 2)
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            $filename = 'user_growth_' . date('Y-m-d_His') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function () use ($totalUsers, $newUsers, $start, $end, $usersByPeriod) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['User Growth Report']);
+                fputcsv($file, ['Generated on: ' . date('Y-m-d H:i:s')]);
+                fputcsv($file, ['Period: ' . $start . ' to ' . $end]);
+                fputcsv($file, []);
+                fputcsv($file, ['Total Users', $totalUsers]);
+                fputcsv($file, ['New Users in Period', $newUsers]);
+                fputcsv($file, []);
+                fputcsv($file, ['Date', 'New Users']);
+
+                foreach ($usersByPeriod as $period) {
+                    fputcsv($file, [
+                        $period->period,
+                        $period->new_users
+                    ]);
+                }
+
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export user growth stats',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

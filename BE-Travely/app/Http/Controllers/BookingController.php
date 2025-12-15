@@ -50,7 +50,7 @@ class BookingController extends Controller
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->whereHas('tour', function ($q) use ($search) {
-                    $q->where('tourName', 'like', "%{$search}%");
+                    $q->where('title', 'like', "%{$search}%");
                 });
             }
 
@@ -840,7 +840,7 @@ class BookingController extends Controller
                     ->map(function ($group) {
                         return [
                             'tour_id' => $group->first()->tourID,
-                            'tour_name' => $group->first()->tour->tourName ?? 'N/A',
+                            'tour_name' => $group->first()->tour->title ?? 'N/A',
                             'bookings_count' => $group->count(),
                             'total_revenue' => $group->whereIn('bookingStatus', ['confirmed', 'completed'])
                                 ->where('paymentStatus', 'paid')->sum('totalPrice'),
@@ -860,7 +860,7 @@ class BookingController extends Controller
                         ],
                         'tour' => [
                             'tourID' => $booking->tour->tourID ?? 'N/A',
-                            'tourName' => $booking->tour->tourName ?? 'N/A',
+                            'tourName' => $booking->tour->title ?? 'N/A',
                         ],
                         'guests' => [
                             'adults' => $booking->numAdults,

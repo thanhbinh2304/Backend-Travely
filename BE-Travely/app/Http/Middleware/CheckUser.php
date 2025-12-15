@@ -20,7 +20,15 @@ class CheckUser
     public function handle(Request $request, Closure $next)
     {
         try {
-            $user = JWTAuth::parseToken()->authenticate();
+            $token = $request->bearerToken() ?? $request->query('token');
+            if ($token) {
+                $user = JWTAuth::setToken($token)->authenticate();
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Token not provided'
+                ], 401);
+            }
 
             if (!$user) {
                 return response()->json([
@@ -29,11 +37,10 @@ class CheckUser
                 ], 404);
             }
 
-            // Allow both User (role_id = 2) and Admin (role_id = 1)
-            if (!in_array($user->role_id, [1, 2])) {
+            if ($user->role_id !== 1) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Access denied. Invalid role.'
+                    'message' => 'Access denied. Admin privileges required.'
                 ], 403);
             }
 
