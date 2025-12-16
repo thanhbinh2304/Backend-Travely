@@ -6,29 +6,26 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
     public function up()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('facebook_id', 255)->nullable()->after('google_id');
-            $table->index('facebook_id');
+            if (!Schema::hasColumn('users', 'facebook_id')) {
+                $table->string('facebook_id', 255)
+                      ->nullable()
+                      ->after('google_id');
+
+                $table->index('facebook_id');
+            }
         });
     }
 
-    /**
-     * Reverse the migrations.
-     *
-     * @return void
-     */
     public function down()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropIndex(['facebook_id']);
-            $table->dropColumn('facebook_id');
+            if (Schema::hasColumn('users', 'facebook_id')) {
+                $table->dropIndex(['facebook_id']);
+                $table->dropColumn('facebook_id');
+            }
         });
     }
 };
