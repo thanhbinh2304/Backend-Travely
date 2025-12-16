@@ -48,3 +48,4 @@ COPY docker/supervisor/supervisord.conf /etc/supervisord.conf
 
 EXPOSE 80
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# End of Dockerfile
