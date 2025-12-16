@@ -207,3 +207,10 @@ Route::get('/admin/statistics/export/booking-stats', [StatisticController::class
 Route::get('/admin/statistics/export/top-tours', [StatisticController::class, 'exportTopTours'])->middleware('admin');
 Route::get('/admin/statistics/export/revenue', [StatisticController::class, 'exportRevenue'])->middleware('admin');
 Route::get('/admin/statistics/export/user-growth', [StatisticController::class, 'exportUserGrowth'])->middleware('admin');
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'env' => app()->environment(),
+        'time' => now(),
+    ]);
+});
