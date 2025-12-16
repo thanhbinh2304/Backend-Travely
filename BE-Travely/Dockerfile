@@ -39,6 +39,11 @@ COPY . .
 # Install PHP deps
 RUN composer install --no-dev --optimize-autoloader
 
+RUN php artisan key:generate || true
+RUN php artisan config:clear
+RUN php artisan route:clear
+RUN php artisan cache:clear
+
 # Permissions
 RUN chown -R www-data:www-data storage bootstrap/cache
 
