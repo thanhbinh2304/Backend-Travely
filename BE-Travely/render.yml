@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: be-travely
+    env: php
+    plan: free
+    buildCommand: composer install --no-dev --optimize-autoloader
+    startCommand: php artisan migrate --force && php -S 0.0.0.0:$PORT -t public
