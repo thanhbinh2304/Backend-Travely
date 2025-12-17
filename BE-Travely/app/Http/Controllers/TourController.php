@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Tour;
 use App\Models\TourImage;
 use App\Models\TourItinerary;
-use App\Services\TourCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +16,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class TourController extends Controller
 {
-    protected $cacheService;
-
-    public function __construct(TourCacheService $cacheService)
-    {
-        $this->cacheService = $cacheService;
-    }
+    
     /**
      * Upload tour image
      * Admin only
@@ -261,21 +255,22 @@ class TourController extends Controller
      * Public access
      */
     public function show($id)
-    {
-        $tour = $this->cacheService->getById($id);
+        {
+            $tour = Tour::with(['images', 'itineraries', 'reviews.user'])
+                ->find($id);
 
-        if (!$tour) {
+            if (!$tour) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tour not found'
+                ], 404);
+            }
+
             return response()->json([
-                'success' => false,
-                'message' => 'Tour not found'
-            ], 404);
+                'success' => true,
+                'data' => $tour
+            ]);
         }
-
-        return response()->json([
-            'success' => true,
-            'data' => $tour
-        ]);
-    }
 
     /**
      * Update the specified tour
@@ -467,7 +462,11 @@ class TourController extends Controller
 
         if (empty($topTourIds)) {
             // Fallback to cacheService if no reviews yet
-            $tours = $this->cacheService->getFeatured($limit);
+            $tours = Tour::with(['images'])
+                ->where('availability', 1)
+                ->orderBy('tourID', 'desc')
+                ->limit($limit)
+                ->get();
             return response()->json([
                 'success' => true,
                 'data' => $tours
