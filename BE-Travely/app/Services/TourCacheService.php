@@ -16,7 +16,7 @@ class TourCacheService
     const KEY_ALL = 'tours:all';
     const KEY_FEATURED = 'tours:featured';
     const KEY_AVAILABLE = 'tours:available';
-    const KEY_DETAIL = 'tour:detail:';
+    const KEY_DETAIL = 'tour:v2:detail:';
     const KEY_SEARCH = 'tours:search:';
 
     /**
@@ -91,11 +91,17 @@ class TourCacheService
     {
         $cacheKey = self::KEY_DETAIL . $id;
 
-        return Cache::tags(['tours', 'tour:' . $id])->remember($cacheKey, self::CACHE_TTL, function () use ($id) {
-            return Tour::with(['images', 'itineraries', 'reviews.user'])
-                ->findOrFail($id);
-        });
+        return Cache::tags(['tours', 'tour:' . $id])->remember(
+            $cacheKey,
+            self::CACHE_TTL,
+            function () use ($id) {
+                return Tour::with(['images', 'itineraries', 'reviews.user'])
+                    ->where('tourID', $id)
+                    ->first();
+            }
+        );
     }
+
 
     /**
      * Search tours with cache

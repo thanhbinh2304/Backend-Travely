@@ -262,19 +262,19 @@ class TourController extends Controller
      */
     public function show($id)
     {
-        try {
-            $tour = $this->cacheService->getById($id);
+        $tour = $this->cacheService->getById($id);
 
-            return response()->json([
-                'success' => true,
-                'data' => $tour
-            ]);
-        } catch (\Exception $e) {
+        if (!$tour) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tour not found'
             ], 404);
         }
+
+        return response()->json([
+            'success' => true,
+            'data' => $tour
+        ]);
     }
 
     /**
