@@ -1,7 +1,0 @@
-.git
-node_modules
-tests
-storage/logs
-.env
-docker-compose.yml
-README.md

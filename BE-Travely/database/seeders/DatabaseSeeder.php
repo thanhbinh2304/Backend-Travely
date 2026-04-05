@@ -9,6 +9,7 @@ use App\Models\Tour;
 use App\Models\Booking;
 use App\Models\Checkout;
 use App\Models\Review;
+use App\Models\Role;
 use App\Models\TourItinerary;
 
 class DatabaseSeeder extends Seeder
@@ -21,14 +22,11 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         // Create admin user if not exists
-        if (!Users::where('email', 'admin@travely.com')->exists()) {
-            Users::factory()->create([
-                'userName' => 'admin',
-                'email' => 'admin@travely.com',
-                'is_admin' => true,
-                'role_id' => 1,
-            ]);
-        }
+        $this->call([
+            RoleSeeder::class,
+            UserSeeder::class,
+        ]);
+        
 
         // Create regular users
         Users::factory(20)->create();

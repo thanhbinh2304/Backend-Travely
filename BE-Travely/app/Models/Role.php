@@ -12,14 +12,15 @@ class Role extends Model
     protected $table = 'roles';
     protected $primaryKey = 'role_id';
     public $incrementing = false;
-
+    protected $keyType = 'int';
+    
     protected $fillable = [
         'role_id',
         'active',
         'updated_by',
         'created_by',
         'description',
-        'name',
+        'name', 
     ];
 
     protected $casts = [

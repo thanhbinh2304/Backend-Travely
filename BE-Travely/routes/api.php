@@ -24,7 +24,11 @@ use App\Http\Controllers\NotificationController;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
-
+Route::get('/test', function () {
+    return response()->json([
+        'status' => 'ok'
+    ]);
+});
 // Public Auth Routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->name('login');
