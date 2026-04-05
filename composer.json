@@ -1,5 +1,17 @@
 {
+    "name": "travely/monorepo",
+    "type": "project",
+    "description": "Monorepo wrapper for the Travely backend. Run Composer in BE-Travely/BE-Travely for the Laravel app.",
     "require": {
+        "php": "^8.0.2",
         "predis/predis": "^3.4"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@php -r \"passthru('composer --working-dir=BE-Travely/BE-Travely install --no-dev --optimize-autoloader', $code); exit($code);\""
+        ],
+        "post-update-cmd": [
+            "@php -r \"passthru('composer --working-dir=BE-Travely/BE-Travely install --no-dev --optimize-autoloader', $code); exit($code);\""
+        ]
     }
 }
