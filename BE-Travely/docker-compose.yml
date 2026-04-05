@@ -55,7 +55,6 @@ services:
       - travely-network
     profiles:
       - local-db
-
   redis:
     image: redis:7-alpine
     container_name: travely-redis
