@@ -13,14 +13,14 @@ services:
       REDIS_PORT: ${REDIS_PORT:-17911}
       REDIS_USERNAME: ${REDIS_USERNAME:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      REDIS_SCHEME: ${REDIS_SCHEME:-tcp}
+      REDIS_SCHEME: ${REDIS_SCHEME:-tls}
       CACHE_DRIVER: ${CACHE_DRIVER:-redis}
       SESSION_DRIVER: ${SESSION_DRIVER:-redis}
       QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
-    depends_on:
-      - redis
 
   redis:
     image: redis:7-alpine
+    profiles:
+      - local
     ports:
-      - "17911:17911"
+      - "6379:6379"
