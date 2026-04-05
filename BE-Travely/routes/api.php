@@ -24,10 +24,7 @@ use Illuminate\Support\Facades\Cache;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
-Route::get('/test-redis', function () {
-    Cache::put('test_key', 'Redis OK', 60);
-    return Cache::get('test_key');
-});
+
 // Public Auth Routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->name('login');
