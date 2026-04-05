@@ -8,6 +8,7 @@ use App\Notifications\VerifyEmailNotification;
 use App\Notifications\ResetPasswordNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -16,6 +17,8 @@ use Tymon\JWTAuth\Exceptions\JWTException;
 
 class AuthController extends Controller
 {
+    private const AUTH_CACHE_TTL = 300; // 5 minutes
+
     /**
      * Register a new user with JWT
      * UUID userID, bcrypt password
@@ -138,6 +141,7 @@ class AuthController extends Controller
         }
 
         $user->save();
+        $this->clearAuthCache($user->userID);
 
         return response()->json([
             'success' => true,
@@ -217,6 +221,7 @@ class AuthController extends Controller
         }
 
         $user->save();
+        $this->clearAuthCache($user->userID);
 
         return response()->json([
             'success' => true,
@@ -295,6 +300,7 @@ class AuthController extends Controller
         }
 
         $user->save();
+        $this->clearAuthCache($user->userID);
 
         return response()->json([
             'success' => true,
@@ -341,6 +347,7 @@ class AuthController extends Controller
             $newRefreshToken = Str::random(64);
             $user->refresh_token = $newRefreshToken;
             $user->save();
+            $this->clearAuthCache($user->userID);
         } catch (JWTException $e) {
             return response()->json([
                 'success' => false,
@@ -448,6 +455,7 @@ class AuthController extends Controller
             $refreshToken = Str::random(64);
             $user->refresh_token = $refreshToken;
             $user->save();
+            $this->clearAuthCache($user->userID);
 
             return response()->json([
                 'success' => true,
@@ -580,6 +588,11 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         try {
+            $user = JWTAuth::parseToken()->authenticate();
+            if ($user) {
+                $this->clearAuthCache($user->userID);
+            }
+
             JWTAuth::invalidate(JWTAuth::getToken());
 
             return response()->json([
@@ -609,9 +622,17 @@ class AuthController extends Controller
                 ], 404);
             }
 
+            $cachedProfile = Cache::tags(['auth', 'user:' . $user->userID])->remember(
+                $this->profileCacheKey($user->userID),
+                self::AUTH_CACHE_TTL,
+                function () use ($user) {
+                    return Users::find($user->userID);
+                }
+            );
+
             return response()->json([
                 'success' => true,
-                'data' => $user
+                'data' => $cachedProfile
             ]);
         } catch (JWTException $e) {
             return response()->json([
@@ -652,6 +673,7 @@ class AuthController extends Controller
 
             // Update only provided fields
             $user->update($request->only(['userName', 'email', 'phoneNumber', 'address']));
+            $this->clearAuthCache($user->userID);
 
             return response()->json([
                 'success' => true,
@@ -704,6 +726,7 @@ class AuthController extends Controller
             // Update password (will be bcrypted by model mutator)
             $user->passWord = $request->new_password;
             $user->save();
+            $this->clearAuthCache($user->userID);
 
             // Invalidate old token and generate new one
             JWTAuth::invalidate(JWTAuth::getToken());
@@ -981,10 +1004,19 @@ class AuthController extends Controller
                 ], 404);
             }
 
+            $isAdmin = Cache::tags(['auth', 'user:' . $user->userID])->remember(
+                $this->adminCacheKey($user->userID),
+                self::AUTH_CACHE_TTL,
+                function () use ($user) {
+                    $freshUser = Users::find($user->userID);
+                    return (bool) ($freshUser && $freshUser->role_id === 1);
+                }
+            );
+
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'is_admin' => $user->role_id === 1
+                    'is_admin' => $isAdmin
                 ]
             ]);
         } catch (JWTException $e) {
@@ -993,5 +1025,20 @@ class AuthController extends Controller
                 'message' => 'Invalid token'
             ], 401);
         }
+    }
+
+    private function profileCacheKey($userId)
+    {
+        return 'auth:profile:' . $userId;
+    }
+
+    private function adminCacheKey($userId)
+    {
+        return 'auth:is_admin:' . $userId;
+    }
+
+    private function clearAuthCache($userId)
+    {
+        Cache::tags(['auth', 'user:' . $userId])->flush();
     }
 }

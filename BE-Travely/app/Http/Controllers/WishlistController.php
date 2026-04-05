@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Wishlist;
 use App\Models\Tour;
+use App\Services\WishlistCacheService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +12,13 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 class WishlistController extends Controller
 {
+    protected $cacheService;
+
+    public function __construct(WishlistCacheService $cacheService)
+    {
+        $this->cacheService = $cacheService;
+    }
+
     /**
      * GET /wishlist - Get user's wishlist
      */
@@ -18,26 +26,13 @@ class WishlistController extends Controller
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
-            $wishlist = Wishlist::with(['tour.images', 'tour.reviews'])
-                ->where('userID', $user->userID)
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            $wishlistWithStats = $wishlist->map(function ($item) {
-                $tour = $item->tour;
-                if ($tour) {
-                    $tour->avg_rating = $tour->reviews->avg('rating');
-                    $tour->review_count = $tour->reviews->count();
-                }
-                return $item;
-            });
+            $wishlist = $this->cacheService->getByUserId($user->userID);
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'total' => $wishlist->count(),
-                    'items' => $wishlistWithStats
+                    'items' => $wishlist
                 ]
             ]);
         } catch (\Exception $e) {
@@ -86,6 +81,8 @@ class WishlistController extends Controller
                 'created_at' => now()
             ]);
 
+            $this->cacheService->clearByUserId($user->userID);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Tour added to wishlist',
@@ -126,6 +123,7 @@ class WishlistController extends Controller
             }
 
             $wishlist->delete();
+            $this->cacheService->clearByUserId($user->userID);
 
             Log::info('Tour removed from wishlist successfully', [
                 'userID' => $user->userID,
@@ -184,6 +182,8 @@ class WishlistController extends Controller
                 $inWishlist = true;
             }
 
+            $this->cacheService->clearByUserId($user->userID);
+
             return response()->json([
                 'success' => true,
                 'message' => "Tour {$action}",
@@ -207,10 +207,7 @@ class WishlistController extends Controller
     {
         try {
             $user = JWTAuth::parseToken()->authenticate();
-
-            $tourIDs = Wishlist::where('userID', $user->userID)
-                ->pluck('tourID')
-                ->toArray();
+            $tourIDs = $this->cacheService->getTourIds($user->userID);
 
             if (empty($tourIDs)) {
                 return response()->json([
@@ -291,6 +288,7 @@ class WishlistController extends Controller
         try {
             $user = JWTAuth::parseToken()->authenticate();
             $count = Wishlist::where('userID', $user->userID)->delete();
+            $this->cacheService->clearByUserId($user->userID);
 
             return response()->json([
                 'success' => true,

@@ -13,7 +13,7 @@ use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\NotificationController;
-
+use Illuminate\Support\Facades\Cache;
 /*
 |--------------------------------------------------------------------------
 | API Routes - JWT Version
@@ -24,7 +24,10 @@ use App\Http\Controllers\NotificationController;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
-
+Route::get('/test-redis', function () {
+    Cache::put('test_key', 'Redis OK', 60);
+    return Cache::get('test_key');
+});
 // Public Auth Routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->name('login');
