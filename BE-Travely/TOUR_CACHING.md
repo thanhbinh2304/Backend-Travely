@@ -1,4 +1,4 @@
-# Tour Caching System Documentation
+# Caching System Documentation (Tour + Auth + Wishlist)
 
 ## 📦 Components
 
@@ -67,6 +67,47 @@ php artisan cache:clear-tours tour 123
 
 ---
 
+### 4. Auth Cache (new)
+Location: `app/Http/Controllers/AuthController.php`
+
+**Cached endpoints**:
+- `GET /api/profile`
+- `GET /api/is-admin`
+
+**Cache TTL**: 5 minutes
+
+**Invalidation triggers**:
+- Login / social login
+- Refresh token
+- Logout
+- Update profile
+- Change password
+
+This keeps profile + role checks fast while preventing stale auth data after user updates.
+
+---
+
+### 5. Wishlist Cache (new)
+Location: `app/Services/WishlistCacheService.php`
+
+**Cached data**:
+- User wishlist list
+- User wishlist tour ID list (for share link)
+
+**Cache tags**:
+- `wishlist`
+- `user:{id}`
+
+**Cache TTL**: 15 minutes
+
+**Invalidation triggers**:
+- Add to wishlist
+- Remove from wishlist
+- Toggle wishlist
+- Clear wishlist
+
+---
+
 ## 🚀 Usage in Controller
 
 The `TourController` has been updated to use caching:
@@ -125,10 +166,98 @@ SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
 
 REDIS_CLIENT=predis
-REDIS_HOST=127.0.0.1
+REDIS_URL=
+REDIS_HOST=redis
 REDIS_PORT=6379
+REDIS_USERNAME=
+REDIS_PASSWORD=
 REDIS_DB=0
 REDIS_CACHE_DB=1
+REDIS_SCHEME=tcp
+```
+
+### Cloud Redis (redis.io / redis cloud)
+Use these environment variables in production:
+
+```env
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+
+REDIS_CLIENT=predis
+REDIS_URL=redis://default:password@host:port
+REDIS_HOST=host
+REDIS_PORT=port
+REDIS_USERNAME=default
+REDIS_PASSWORD=password
+REDIS_DB=0
+REDIS_CACHE_DB=1
+REDIS_SCHEME=tls
+```
+
+If `REDIS_URL` is set, Laravel will use it. Keep `REDIS_HOST/PORT/...` as fallback.
+
+---
+
+## 🐳 Docker Setup (local + cloud Redis ready)
+
+`docker-compose.yml` now supports both modes:
+- Local Redis via service `redis`
+- External cloud Redis by setting `REDIS_URL` and related env vars
+
+### Local mode
+```env
+REDIS_URL=
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_SCHEME=tcp
+```
+
+### Cloud mode
+```env
+REDIS_URL=redis://default:password@host:port
+REDIS_HOST=host
+REDIS_PORT=port
+REDIS_SCHEME=tls
+```
+
+---
+
+## 🚀 Render Deployment Setup
+
+`render.yml` start command runs:
+1. `php artisan config:cache`
+2. `php artisan migrate --force`
+3. `php artisan serve --host 0.0.0.0 --port $PORT`
+
+Set these environment variables in Render Dashboard:
+
+```env
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:...
+APP_URL=https://<your-render-domain>
+
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+
+REDIS_CLIENT=predis
+REDIS_URL=redis://default:password@host:port
+REDIS_HOST=host
+REDIS_PORT=port
+REDIS_USERNAME=default
+REDIS_PASSWORD=password
+REDIS_SCHEME=tls
+
+JWT_SECRET=...
+```
+
+Recommended one-time deploy commands:
+```bash
+php artisan config:clear
+php artisan cache:clear
+php artisan config:cache
 ```
 
 ### Adjust Cache TTL
