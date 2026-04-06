@@ -16,7 +16,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class TourController extends Controller
 {
-    
+
     /**
      * Upload tour image
      * Admin only
@@ -255,22 +255,22 @@ class TourController extends Controller
      * Public access
      */
     public function show($id)
-        {
-            $tour = Tour::with(['images', 'itineraries', 'reviews.user'])
-                ->find($id);
+    {
+        $tour = Tour::with(['images', 'itineraries', 'reviews.user'])
+            ->find($id);
 
-            if (!$tour) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Tour not found'
-                ], 404);
-            }
-
+        if (!$tour) {
             return response()->json([
-                'success' => true,
-                'data' => $tour
-            ]);
+                'success' => false,
+                'message' => 'Tour not found'
+            ], 404);
         }
+
+        return response()->json([
+            'success' => true,
+            'data' => $tour
+        ]);
+    }
 
     /**
      * Update the specified tour
@@ -518,14 +518,21 @@ class TourController extends Controller
             ], 422);
         }
 
-        $keyword = $request->keyword;
+        $keyword = trim(preg_replace('/\s+/', ' ', (string) $request->keyword));
+        $escapedKeyword = addcslashes($keyword, '%_\\');
+        $tokens = array_values(array_filter(explode(' ', $keyword)));
 
         $tours = Tour::with(['images'])
-            ->where(function ($query) use ($keyword) {
-                $query->where('title', 'like', "%{$keyword}%")
-                    ->orWhere('description', 'like', "%{$keyword}%")
-                    ->orWhere('destination', 'like', "%{$keyword}%");
+            ->where('availability', 1)
+            ->where(function ($query) use ($escapedKeyword, $tokens) {
+                $query->where('title', 'like', "%{$escapedKeyword}%");
+
+                foreach ($tokens as $token) {
+                    $escapedToken = addcslashes($token, '%_\\');
+                    $query->orWhere('title', 'like', "%{$escapedToken}%");
+                }
             })
+            ->orderBy('tourID', 'desc')
             ->paginate(15);
 
         return response()->json([

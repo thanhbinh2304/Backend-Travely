@@ -108,15 +108,24 @@ class TourCacheService
      */
     public function search($keyword, $perPage = 15)
     {
-        $cacheKey = self::KEY_SEARCH . md5($keyword) . ":{$perPage}";
+        $normalizedKeyword = trim(preg_replace('/\s+/', ' ', (string) $keyword));
+        $cacheKey = self::KEY_SEARCH . md5($normalizedKeyword) . ":{$perPage}";
 
-        return Cache::tags(['tours', 'search'])->remember($cacheKey, self::CACHE_TTL, function () use ($keyword, $perPage) {
+        return Cache::tags(['tours', 'search'])->remember($cacheKey, self::CACHE_TTL, function () use ($normalizedKeyword, $perPage) {
+            $escapedKeyword = addcslashes($normalizedKeyword, '%_\\');
+            $tokens = array_values(array_filter(explode(' ', $normalizedKeyword)));
+
             return Tour::with(['images', 'itineraries'])
-                ->where(function ($query) use ($keyword) {
-                    $query->where('title', 'like', "%{$keyword}%")
-                        ->orWhere('description', 'like', "%{$keyword}%")
-                        ->orWhere('destination', 'like', "%{$keyword}%");
+                ->where('availability', 1)
+                ->where(function ($query) use ($escapedKeyword, $tokens) {
+                    $query->where('title', 'like', "%{$escapedKeyword}%");
+
+                    foreach ($tokens as $token) {
+                        $escapedToken = addcslashes($token, '%_\\');
+                        $query->orWhere('title', 'like', "%{$escapedToken}%");
+                    }
                 })
+                ->orderBy('tourID', 'desc')
                 ->paginate($perPage);
         });
     }
