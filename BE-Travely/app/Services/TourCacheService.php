@@ -120,9 +120,13 @@ class TourCacheService
                 ->where(function ($query) use ($escapedKeyword, $tokens) {
                     $query->where('title', 'like', "%{$escapedKeyword}%");
 
-                    foreach ($tokens as $token) {
-                        $escapedToken = addcslashes($token, '%_\\');
-                        $query->orWhere('title', 'like', "%{$escapedToken}%");
+                    if (count($tokens) > 1) {
+                        $query->orWhere(function ($tokenQuery) use ($tokens) {
+                            foreach ($tokens as $token) {
+                                $escapedToken = addcslashes($token, '%_\\');
+                                $tokenQuery->where('title', 'like', "%{$escapedToken}%");
+                            }
+                        });
                     }
                 })
                 ->orderBy('tourID', 'desc')
