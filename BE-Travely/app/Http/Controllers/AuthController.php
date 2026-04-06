@@ -6,9 +6,9 @@ use App\Models\Users;
 use App\Models\Role;
 use App\Notifications\VerifyEmailNotification;
 use App\Notifications\ResetPasswordNotification;
+use App\Support\TaggedCache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -622,7 +622,8 @@ class AuthController extends Controller
                 ], 404);
             }
 
-            $cachedProfile = Cache::tags(['auth', 'user:' . $user->userID])->remember(
+            $cachedProfile = TaggedCache::remember(
+                ['auth', 'user:' . $user->userID],
                 $this->profileCacheKey($user->userID),
                 self::AUTH_CACHE_TTL,
                 function () use ($user) {
@@ -1004,7 +1005,8 @@ class AuthController extends Controller
                 ], 404);
             }
 
-            $isAdmin = Cache::tags(['auth', 'user:' . $user->userID])->remember(
+            $isAdmin = TaggedCache::remember(
+                ['auth', 'user:' . $user->userID],
                 $this->adminCacheKey($user->userID),
                 self::AUTH_CACHE_TTL,
                 function () use ($user) {
@@ -1039,6 +1041,6 @@ class AuthController extends Controller
 
     private function clearAuthCache($userId)
     {
-        Cache::tags(['auth', 'user:' . $userId])->flush();
+        TaggedCache::flush(['auth', 'user:' . $userId]);
     }
 }

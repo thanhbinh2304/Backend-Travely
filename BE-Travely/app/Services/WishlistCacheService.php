@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Wishlist;
-use Illuminate\Support\Facades\Cache;
+use App\Support\TaggedCache;
 
 class WishlistCacheService
 {
@@ -11,7 +11,8 @@ class WishlistCacheService
 
     public function getByUserId($userId)
     {
-        return Cache::tags(['wishlist', 'user:' . $userId])->remember(
+        return TaggedCache::remember(
+            ['wishlist', 'user:' . $userId],
             $this->wishlistCacheKey($userId),
             self::CACHE_TTL,
             function () use ($userId) {
@@ -36,7 +37,8 @@ class WishlistCacheService
 
     public function getTourIds($userId)
     {
-        return Cache::tags(['wishlist', 'user:' . $userId])->remember(
+        return TaggedCache::remember(
+            ['wishlist', 'user:' . $userId],
             $this->tourIdsCacheKey($userId),
             self::CACHE_TTL,
             function () use ($userId) {
@@ -49,7 +51,7 @@ class WishlistCacheService
 
     public function clearByUserId($userId)
     {
-        Cache::tags(['wishlist', 'user:' . $userId])->flush();
+        TaggedCache::flush(['wishlist', 'user:' . $userId]);
     }
 
     private function wishlistCacheKey($userId)

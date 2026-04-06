@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Cache;
 use App\Models\Tour;
+use App\Support\TaggedCache;
 
 class TourCacheService
 {
@@ -26,7 +26,7 @@ class TourCacheService
     {
         $cacheKey = self::KEY_ALL . ":{$perPage}";
 
-        return Cache::tags(['tours'])->remember($cacheKey, self::CACHE_TTL, function () use ($perPage) {
+        return TaggedCache::remember(['tours'], $cacheKey, self::CACHE_TTL, function () use ($perPage) {
             return Tour::with(['images', 'itineraries'])
                 ->paginate($perPage);
         });
@@ -40,7 +40,7 @@ class TourCacheService
     {
         $cacheKey = self::KEY_FEATURED . ":{$limit}";
 
-        return Cache::tags(['tours', 'featured'])->remember($cacheKey, self::CACHE_TTL, function () use ($limit) {
+        return TaggedCache::remember(['tours', 'featured'], $cacheKey, self::CACHE_TTL, function () use ($limit) {
             return Tour::with(['images'])
                 ->where('availability', 1)
                 ->orderBy('tourID', 'desc')
@@ -56,7 +56,7 @@ class TourCacheService
     {
         $cacheKey = self::KEY_AVAILABLE . ':' . md5(json_encode($filters)) . ":{$perPage}";
 
-        return Cache::tags(['tours', 'available'])->remember($cacheKey, self::CACHE_TTL, function () use ($filters, $perPage) {
+        return TaggedCache::remember(['tours', 'available'], $cacheKey, self::CACHE_TTL, function () use ($filters, $perPage) {
             $query = Tour::with(['images', 'itineraries'])
                 ->where('availability', 1);
 
@@ -91,7 +91,8 @@ class TourCacheService
     {
         $cacheKey = self::KEY_DETAIL . $id;
 
-        return Cache::tags(['tours', 'tour:' . $id])->remember(
+        return TaggedCache::remember(
+            ['tours', 'tour:' . $id],
             $cacheKey,
             self::CACHE_TTL,
             function () use ($id) {
@@ -111,7 +112,7 @@ class TourCacheService
         $normalizedKeyword = trim(preg_replace('/\s+/', ' ', (string) $keyword));
         $cacheKey = self::KEY_SEARCH . md5($normalizedKeyword) . ":{$perPage}";
 
-        return Cache::tags(['tours', 'search'])->remember($cacheKey, self::CACHE_TTL, function () use ($normalizedKeyword, $perPage) {
+        return TaggedCache::remember(['tours', 'search'], $cacheKey, self::CACHE_TTL, function () use ($normalizedKeyword, $perPage) {
             $escapedKeyword = addcslashes($normalizedKeyword, '%_\\');
             $tokens = array_values(array_filter(explode(' ', $normalizedKeyword)));
 
@@ -139,7 +140,7 @@ class TourCacheService
      */
     public function clearAll()
     {
-        Cache::tags(['tours'])->flush();
+        TaggedCache::flush(['tours']);
     }
 
     /**
@@ -147,7 +148,7 @@ class TourCacheService
      */
     public function clearTour($id)
     {
-        Cache::tags(['tour:' . $id])->flush();
+        TaggedCache::flush(['tour:' . $id]);
     }
 
     /**
@@ -155,7 +156,7 @@ class TourCacheService
      */
     public function clearFeatured()
     {
-        Cache::tags(['featured'])->flush();
+        TaggedCache::flush(['featured']);
     }
 
     /**
@@ -163,7 +164,7 @@ class TourCacheService
      */
     public function clearAvailable()
     {
-        Cache::tags(['available'])->flush();
+        TaggedCache::flush(['available']);
     }
 
     /**
@@ -171,7 +172,7 @@ class TourCacheService
      */
     public function clearSearch()
     {
-        Cache::tags(['search'])->flush();
+        TaggedCache::flush(['search']);
     }
 
     /**
