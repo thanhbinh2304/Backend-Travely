@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Cache;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
 Route::get('/test', function () {
     return response()->json([
         'status' => 'ok'

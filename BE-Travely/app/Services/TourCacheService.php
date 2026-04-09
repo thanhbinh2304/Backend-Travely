@@ -1,9 +1,13 @@
 <?php
 
+
 namespace App\Services;
+
+use App\Models\Review;
 
 use App\Models\Tour;
 use App\Support\TaggedCache;
+use Illuminate\Support\Facades\DB;
 
 class TourCacheService
 {
@@ -38,15 +42,39 @@ class TourCacheService
      */
     public function getFeatured($limit = 8)
     {
-        $cacheKey = self::KEY_FEATURED . ":{$limit}";
+        $limit = max(1, min($limit, 20));
 
-        return TaggedCache::remember(['tours', 'featured'], $cacheKey, self::CACHE_TTL, function () use ($limit) {
-            return Tour::with(['images'])
-                ->where('availability', 1)
-                ->orderBy('tourID', 'desc')
-                ->limit($limit)
-                ->get();
-        });
+    $cacheKey = self::KEY_FEATURED . ":{$limit}";
+
+    return TaggedCache::remember(['tours', 'featured'], $cacheKey, self::CACHE_TTL, function () use ($limit) {
+    $ratings = DB::table('review')
+            ->select(
+                'tourID',
+                DB::raw('AVG(rating) as avg_rating'),
+                DB::raw('COUNT(reviewID) as review_count')
+            )
+            ->groupBy('tourID');
+
+        return Tour::with('images')
+            ->leftJoinSub($ratings, 'r', function ($join) {
+                $join->on('tour.tourID', '=', 'r.tourID');
+            })
+            ->where('tour.availability', 1)
+            ->select(
+                'tour.tourID',
+                'tour.title',
+                'tour.priceAdult',
+                'tour.priceChild',
+                'tour.destination',
+                'tour.created_at',
+
+                DB::raw('COALESCE(r.avg_rating, 0) as avg_rating'),
+                DB::raw('COALESCE(r.review_count, 0) as review_count')
+            )
+            ->orderByDesc('avg_rating')
+            ->limit($limit)
+            ->get();
+    });
     }
 
     /**
@@ -54,33 +82,65 @@ class TourCacheService
      */
     public function getAvailable($filters = [], $perPage = 15)
     {
+        $perPage = max(1, min($perPage, 50));
+
         $cacheKey = self::KEY_AVAILABLE . ':' . md5(json_encode($filters)) . ":{$perPage}";
 
         return TaggedCache::remember(['tours', 'available'], $cacheKey, self::CACHE_TTL, function () use ($filters, $perPage) {
-            $query = Tour::with(['images', 'itineraries'])
-                ->where('availability', 1);
 
+            // Subquery tính rating
+            $ratings = DB::table('review')
+                ->where('status', Review::STATUS_APPROVED)
+                ->select(
+                    'tourID',
+                    DB::raw('AVG(rating) as avg_rating'),
+                    DB::raw('COUNT(*) as review_count')
+                )
+                ->groupBy('tourID');
+
+            $query = Tour::with(['images', 'itineraries'])
+                ->leftJoinSub($ratings, 'r', function ($join) {
+                    $join->on('tour.tourID', '=', 'r.tourID');
+                })
+                ->where('tour.availability', 1)
+                ->where('tour.quantity', '>', 0);
+
+            // Filters
             if (!empty($filters['destination'])) {
-                $query->where('destination', 'like', "%{$filters['destination']}%");
+                $query->where('tour.destination', 'like', "%{$filters['destination']}%");
             }
 
             if (!empty($filters['min_price'])) {
-                $query->where('priceAdult', '>=', $filters['min_price']);
+                $query->where('tour.priceAdult', '>=', $filters['min_price']);
             }
 
             if (!empty($filters['max_price'])) {
-                $query->where('priceAdult', '<=', $filters['max_price']);
+                $query->where('tour.priceAdult', '<=', $filters['max_price']);
             }
 
             if (!empty($filters['start_date'])) {
-                $query->where('startDate', '>=', $filters['start_date']);
+                $query->where('tour.startDate', '>=', $filters['start_date']);
             }
 
             if (!empty($filters['end_date'])) {
-                $query->where('endDate', '<=', $filters['end_date']);
+                $query->where('tour.endDate', '<=', $filters['end_date']);
             }
+            return $query
+                ->select(
+                    'tour.tourID',
+                    'tour.title',
+                    'tour.priceAdult',
+                    'tour.priceChild',
+                    'tour.destination',
+                    'tour.startDate',
+                    'tour.endDate',
+                    'tour.created_at',
 
-            return $query->paginate($perPage);
+                    DB::raw('COALESCE(r.avg_rating, 0) as avg_rating'),
+                    DB::raw('COALESCE(r.review_count, 0) as review_count')
+                )
+                ->orderByDesc('tour.startDate')
+                ->paginate($perPage);
         });
     }
 

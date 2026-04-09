@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
+
 use App\Models\Review;
 use App\Models\Tour;
 use App\Models\Booking;
@@ -43,6 +46,33 @@ class ReviewController extends Controller
 
             $perPage = $request->get('per_page', 15);
             $reviews = $query->paginate($perPage);
+
+            // Tính avg_rating và review_count cho từng tour nếu có tourID
+            $tourIds = collect($reviews->items())->pluck('tour.tourID')->filter()->unique()->values()->all();
+            $stats = [];
+            if (!empty($tourIds)) {
+                $stats = Review::whereIn('tourID', $tourIds)
+                    ->where('status', Review::STATUS_APPROVED)
+                    ->groupBy('tourID')
+                    ->select('tourID', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as review_count'))
+                    ->get()
+                    ->keyBy('tourID');
+            }
+
+            if ($reviews instanceof LengthAwarePaginator) {
+                $reviews->setCollection(
+                    $reviews->getCollection()->transform(function ($review) use ($stats) {
+                        if ($review->tour && isset($stats[$review->tour->tourID])) {
+                            $review->tour->avg_rating = $stats[$review->tour->tourID]->avg_rating ? (float) number_format((float) $stats[$review->tour->tourID]->avg_rating, 2) : 0.0;
+                            $review->tour->review_count = $stats[$review->tour->tourID]->review_count ? (int) $stats[$review->tour->tourID]->review_count : 0;
+                        } else if ($review->tour) {
+                            $review->tour->avg_rating = 0.0;
+                            $review->tour->review_count = 0;
+                        }
+                        return $review;
+                    })
+                );
+            }
 
             return response()->json([
                 'success' => true,

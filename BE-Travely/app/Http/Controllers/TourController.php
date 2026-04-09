@@ -11,16 +11,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\Booking;
+use App\Services\TourCacheService;
 use App\Models\Review;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class TourController extends Controller
 {
-
     /**
      * Upload tour image
      * Admin only
      */
+    public TourCacheService $cacheTourService;
+    public function __construct(TourCacheService $cacheTourService)
+    {
+        $this->cacheTourService = $cacheTourService;
+    }
     public function uploadImage(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -452,48 +457,7 @@ class TourController extends Controller
     {
         $limit = (int) $request->get('limit', 6);
 
-        // Get top tour IDs by average review rating
-        $topTourIds = Review::select('tourID', DB::raw('AVG(rating) as avg_rating'))
-            ->groupBy('tourID')
-            ->orderByDesc('avg_rating')
-            ->limit($limit)
-            ->pluck('tourID')
-            ->toArray();
-
-        if (empty($topTourIds)) {
-            // Fallback to cacheService if no reviews yet
-            $tours = Tour::with(['images'])
-                ->where('availability', 1)
-                ->orderBy('tourID', 'desc')
-                ->limit($limit)
-                ->get();
-            return response()->json([
-                'success' => true,
-                'data' => $tours
-            ]);
-        }
-
-        // Load tours with images and preserve order from $topTourIds
-        $tours = Tour::with(['images'])
-            ->whereIn('tourID', $topTourIds)
-            ->get()
-            ->sortBy(function ($t) use ($topTourIds) {
-                return array_search($t->tourID, $topTourIds);
-            })
-            ->values();
-
-        // Attach average rating per tour for frontend convenience
-        $averages = Review::whereIn('tourID', $topTourIds)
-            ->groupBy('tourID')
-            ->select('tourID', DB::raw('AVG(rating) as avg_rating'), DB::raw('COUNT(*) as total_reviews'))
-            ->get()
-            ->keyBy('tourID');
-
-        foreach ($tours as $tour) {
-            $s = $averages->has($tour->tourID) ? $averages->get($tour->tourID) : null;
-            $tour->avg_rating = $s ? (float) number_format((float) $s->avg_rating, 2) : 0.0;
-            $tour->total_reviews = $s ? (int) $s->total_reviews : 0;
-        }
+        $tours = $this->cacheTourService->getFeatured($limit);
 
         return response()->json([
             'success' => true,
@@ -549,30 +513,24 @@ class TourController extends Controller
      * Get available tours (quantity > 0 and availability = 1)
      * Public access
      */
-    public function available()
+    public function available(Request $request)
     {
-        $tours = Tour::with(['images'])
-            ->where('availability', 1)
-            ->where('quantity', '>', 0)
-            // Temporarily removed date filter to show all available tours
-            // ->where('startDate', '>=', now())
-            ->orderBy('startDate', 'desc')
-            ->paginate(15);
+       $filters = $request->only([
+        'destination',
+        'min_price',
+        'max_price',
+        'start_date',
+        'end_date'
+    ]);
 
-        Log::info('Available tours query result:', [
-            'count' => $tours->count(),
-            'first_tour' => $tours->first() ? [
-                'tourID' => $tours->first()->tourID,
-                'title' => $tours->first()->title,
-                'images_count' => $tours->first()->images ? $tours->first()->images->count() : 0,
-                'first_image' => $tours->first()->images->first() ?? null
-            ] : null
-        ]);
+    $perPage = (int)$request->get('per_page', 8);
 
-        return response()->json([
-            'success' => true,
-            'data' => $tours
-        ]);
+    $tours = $this->cacheTourService->getAvailable($filters, $perPage);
+
+    return response()->json([
+        'success' => true,
+        'data' => $tours
+    ]);
     }
 
     /**
