@@ -8,7 +8,7 @@ return [
 
     'allowed_origins' => [
         'http://localhost:3000',
-        'https://fe-travely-qxwyhtnke-thanhbinh2304s-projects.vercel.app',
+        'https://fe-travely-p2bbndb7d-thanhbinh2304s-projects.vercel.app',
     ],
 
     'allowed_origins_patterns' => [],
