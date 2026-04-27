@@ -237,6 +237,10 @@ class TourController extends Controller
 
             DB::commit();
 
+            // Invalidate related caches
+            $this->cacheTourService->clearFeatured();
+            $this->cacheTourService->clearAvailable();
+
             // Load relationships
             $tour->load(['images', 'itineraries']);
 
@@ -389,6 +393,11 @@ class TourController extends Controller
 
             DB::commit();
 
+            // Invalidate related caches
+            $this->cacheTourService->clearTour($id);
+            $this->cacheTourService->clearFeatured();
+            $this->cacheTourService->clearAvailable();
+
             // Load relationships
             $tour->load(['images', 'itineraries']);
 
@@ -434,6 +443,11 @@ class TourController extends Controller
             $tour->delete();
 
             DB::commit();
+
+            // Invalidate related caches
+            $this->cacheTourService->clearTour($id);
+            $this->cacheTourService->clearFeatured();
+            $this->cacheTourService->clearAvailable();
 
             return response()->json([
                 'success' => true,
@@ -515,22 +529,22 @@ class TourController extends Controller
      */
     public function available(Request $request)
     {
-       $filters = $request->only([
-        'destination',
-        'min_price',
-        'max_price',
-        'start_date',
-        'end_date'
-    ]);
+        $filters = $request->only([
+            'destination',
+            'min_price',
+            'max_price',
+            'start_date',
+            'end_date'
+        ]);
 
-    $perPage = (int)$request->get('per_page', 8);
+        $perPage = (int)$request->get('per_page', 8);
 
-    $tours = $this->cacheTourService->getAvailable($filters, $perPage);
+        $tours = $this->cacheTourService->getAvailable($filters, $perPage);
 
-    return response()->json([
-        'success' => true,
-        'data' => $tours
-    ]);
+        return response()->json([
+            'success' => true,
+            'data' => $tours
+        ]);
     }
 
     /**
@@ -579,6 +593,11 @@ class TourController extends Controller
         $tour->availability = $request->availability;
         $tour->save();
 
+        // Invalidate related caches
+        $this->cacheTourService->clearTour($id);
+        $this->cacheTourService->clearFeatured();
+        $this->cacheTourService->clearAvailable();
+
         return response()->json([
             'success' => true,
             'message' => 'Tour availability updated successfully',
@@ -614,6 +633,11 @@ class TourController extends Controller
 
         $tour->quantity = $request->quantity;
         $tour->save();
+
+        // Invalidate related caches
+        $this->cacheTourService->clearTour($id);
+        $this->cacheTourService->clearFeatured();
+        $this->cacheTourService->clearAvailable();
 
         return response()->json([
             'success' => true,
